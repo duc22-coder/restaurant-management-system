@@ -1,0 +1,17 @@
+# Target & Build
+target/
+frontend/dist/
+frontend/node_modules/
+
+# IDE & Editor
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Environment & Logs
+.env
+*.log
+.DS_Store

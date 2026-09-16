@@ -34,6 +34,12 @@ public class Payment {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "voucher_code", length = 50)
+    private String voucherCode;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    private BigDecimal discountAmount;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PaymentStatus status;
@@ -49,6 +55,9 @@ public class Payment {
         createdAt = LocalDateTime.now();
         if (status == null) {
             status = PaymentStatus.PENDING;
+        }
+        if (discountAmount == null) {
+            discountAmount = BigDecimal.ZERO;
         }
     }
 }

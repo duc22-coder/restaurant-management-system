@@ -47,6 +47,26 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  // Đăng ký tài khoản Customer mới - tự động đăng nhập luôn sau khi đăng ký thành công
+  const register = async (registerData) => {
+    const data = await axiosClient.post('/auth/register', registerData);
+    setToken(data.accessToken);
+    setUser({
+      id: data.id,
+      username: data.username,
+      fullName: data.fullName,
+      role: data.role
+    });
+    localStorage.setItem('token', data.accessToken);
+    localStorage.setItem('user', JSON.stringify({
+      id: data.id,
+      username: data.username,
+      fullName: data.fullName,
+      role: data.role
+    }));
+    return data;
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -55,7 +75,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   );

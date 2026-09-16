@@ -10,7 +10,7 @@ export const CartProvider = ({ children }) => {
   });
 
   const [tableId, setTableId] = useState(() => {
-    return localStorage.getItem('tableId') || '1';
+    return localStorage.getItem('tableId') || '';
   });
 
   const [lastOrder, setLastOrder] = useState(() => {
@@ -27,6 +27,8 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     if (tableId) {
       localStorage.setItem('tableId', tableId);
+    } else {
+      localStorage.removeItem('tableId');
     }
   }, [tableId]);
 
@@ -70,15 +72,20 @@ export const CartProvider = ({ children }) => {
     localStorage.removeItem('cartItems');
   };
 
-  const submitOrder = async (customerNote = '') => {
+  const submitOrder = async ({ customerNote = '', orderType = 'DINE_IN', overrideTableId = null, deliveryAddress = '', contactPhone = '' } = {}) => {
     if (cartItems.length === 0) {
       throw new Error("Giỏ hàng của bạn đang trống!");
     }
 
     setSubmittingOrder(true);
     try {
+      const chosenTable = overrideTableId || tableId || null;
       const payload = {
-        tableId: Number(tableId || 1),
+        orderType,
+        // Ăn tại bàn: dùng bàn được chọn (overrideTableId hoặc tableId) nếu có
+        tableId: orderType === 'DINE_IN' && chosenTable ? Number(chosenTable) : null,
+        deliveryAddress: orderType === 'DELIVERY' ? deliveryAddress : null,
+        contactPhone: orderType !== 'DINE_IN' ? contactPhone : null,
         customerNote,
         items: cartItems.map((item) => ({
           menuItemId: item.menuItem.id,

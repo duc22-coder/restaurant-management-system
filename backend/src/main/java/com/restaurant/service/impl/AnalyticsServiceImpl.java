@@ -40,17 +40,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
 
         // 2. Tổng số đơn hàng & Số đơn hoàn thành
+        // Dùng COUNT ở DB thay vì load toàn bộ bảng orders vào bộ nhớ rồi filter (dashboard này bị polling mỗi 15s)
         long totalOrders = orderRepository.count();
-        long completedOrders = orderRepository.findAll().stream()
-                .filter(o -> o.getStatus() == OrderStatus.COMPLETED)
-                .count();
+        long completedOrders = orderRepository.countByStatus(OrderStatus.COMPLETED);
 
         double successRate = totalOrders > 0 ? ((double) completedOrders / totalOrders) * 100.0 : 100.0;
 
-        // 3. Số bàn đang phục vụ khách
-        long activeTablesCount = tableRepository.findAll().stream()
-                .filter(t -> t.getStatus() == TableStatus.OCCUPIED || t.getStatus() == TableStatus.PAYING)
-                .count();
+        // 3. Số bàn đang phục vụ khách (đếm trực tiếp ở DB thay vì load toàn bộ bảng tables)
+        long activeTablesCount = tableRepository.countByStatusIn(List.of(TableStatus.OCCUPIED, TableStatus.PAYING));
 
         // 4. Top 5 món ăn bán chạy nhất
         List<Object[]> topItemsData = orderItemRepository.findTopSellingItems();

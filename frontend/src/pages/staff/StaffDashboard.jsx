@@ -36,10 +36,19 @@ function StaffDashboard() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [processingPayment, setProcessingPayment] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [bankQr, setBankQr] = useState(null);
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [voucherCodeInput, setVoucherCodeInput] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherError, setVoucherError] = useState('');
+  const [checkingVoucher, setCheckingVoucher] = useState(false);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    // Tạm dừng polling khi tab bị ẩn (thu nhỏ / chuyển tab khác) để tiết kiệm request
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchData();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -88,7 +97,41 @@ function StaffDashboard() {
   const handleOpenPaymentModal = (order) => {
     setSelectedOrderForPayment(order);
     setPaymentMethod('CASH');
+    setBankQr(null);
+    setVoucherCodeInput('');
+    setAppliedVoucher(null);
+    setVoucherError('');
     setShowReceiptModal(true);
+  };
+
+  const handleCheckVoucher = async () => {
+    if (!voucherCodeInput.trim()) return;
+    setCheckingVoucher(true);
+    setVoucherError('');
+    try {
+      const data = await axiosClient.get('/staff/payment/validate-voucher', {
+        params: { code: voucherCodeInput.trim(), orderAmount: selectedOrderForPayment.totalAmount },
+      });
+      setAppliedVoucher(data);
+    } catch (err) {
+      setAppliedVoucher(null);
+      setVoucherError(err.response?.data?.message || 'Mã voucher không hợp lệ!');
+    } finally {
+      setCheckingVoucher(false);
+    }
+  };
+
+  const handleFetchBankQr = async (orderId) => {
+    setLoadingQr(true);
+    setBankQr(null);
+    try {
+      const data = await axiosClient.get(`/staff/payment/qr/${orderId}`);
+      setBankQr(data);
+    } catch (err) {
+      alert('Lỗi tạo mã QR: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoadingQr(false);
+    }
   };
 
   const handleConfirmPayment = async () => {
@@ -98,9 +141,10 @@ function StaffDashboard() {
       await axiosClient.post('/staff/payment/process', {
         orderId: selectedOrderForPayment.id,
         paymentMethod: paymentMethod,
+        voucherCode: appliedVoucher ? appliedVoucher.code : null,
       });
 
-      alert(`Thanh toán thành công Đơn ${selectedOrderForPayment.orderCode}! Bàn B${String(selectedOrderForPayment.tableId).padStart(2, '0')} đã được tự động giải phóng.`);
+      alert(`Thanh toán thành công Đơn ${selectedOrderForPayment.orderCode}!` + (selectedOrderForPayment.orderType === 'DINE_IN' ? ` Bàn B${String(selectedOrderForPayment.tableId).padStart(2, '0')} đã được tự động giải phóng.` : ''));
       setShowReceiptModal(false);
       setSelectedOrderForPayment(null);
       fetchData();
@@ -241,8 +285,14 @@ function StaffDashboard() {
                   >
                     <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <span className="w-10 h-10 rounded-xl bg-orange-600/20 text-orange-400 border border-orange-500/30 font-black text-sm flex items-center justify-center">
-                          B{String(order.tableId).padStart(2, '0')}
+                        <span className={`w-10 h-10 rounded-xl border font-black text-[10px] flex items-center justify-center text-center leading-tight ${
+                          order.orderType === 'DINE_IN'
+                            ? 'bg-orange-600/20 text-orange-400 border-orange-500/30'
+                            : order.orderType === 'DELIVERY'
+                            ? 'bg-pink-600/20 text-pink-400 border-pink-500/30'
+                            : 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30'
+                        }`}>
+                          {order.orderType === 'DINE_IN' ? `B${String(order.tableId).padStart(2, '0')}` : order.orderType === 'DELIVERY' ? 'GIAO' : 'LẤY'}
                         </span>
                         <div>
                           <p className="font-mono font-bold text-amber-400 text-xs">{order.orderCode}</p>
@@ -263,6 +313,14 @@ function StaffDashboard() {
                         {order.status === 'PENDING' ? '⏳ ĐỜI CHẾ BIẾN' : '🔥 ĐANG NẤU'}
                       </span>
                     </div>
+
+                    {order.orderType !== 'DINE_IN' && (
+                      <div className="mx-4 mt-3 p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs space-y-0.5">
+                        <p className="font-bold">{order.orderType === 'DELIVERY' ? '🛵 Giao Tận Nơi' : '🥡 Khách Đến Lấy'}</p>
+                        {order.deliveryAddress && <p>Địa chỉ: {order.deliveryAddress}</p>}
+                        {order.contactPhone && <p>SĐT: {order.contactPhone}</p>}
+                      </div>
+                    )}
 
                     {order.customerNote && (
                       <div className="mx-4 mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2">
@@ -482,11 +540,19 @@ function StaffDashboard() {
                 <div key={order.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <div className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30 font-black text-sm flex items-center justify-center">
-                        B{String(order.tableId).padStart(2, '0')}
+                      <span className={`w-10 h-10 rounded-xl border font-black text-[10px] flex items-center justify-center text-center leading-tight ${
+                        order.orderType === 'DINE_IN'
+                          ? 'bg-purple-600/20 text-purple-400 border-purple-500/30'
+                          : order.orderType === 'DELIVERY'
+                          ? 'bg-pink-600/20 text-pink-400 border-pink-500/30'
+                          : 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30'
+                      }`}>
+                        {order.orderType === 'DINE_IN' ? `B${String(order.tableId).padStart(2, '0')}` : order.orderType === 'DELIVERY' ? 'GIAO' : 'LẤY'}
                       </span>
                       <div>
-                        <h4 className="font-bold text-white text-sm">Bàn {order.tableNumber}</h4>
+                        <h4 className="font-bold text-white text-sm">
+                          {order.orderType === 'DINE_IN' ? `Bàn ${order.tableNumber}` : order.orderType === 'DELIVERY' ? 'Giao Tận Nơi' : 'Khách Đến Lấy'}
+                        </h4>
                         <p className="font-mono text-xs text-amber-400">{order.orderCode}</p>
                       </div>
                     </div>
@@ -543,7 +609,11 @@ function StaffDashboard() {
               </div>
 
               <div className="flex justify-between text-[11px] text-slate-700">
-                <span>Số Bàn: <strong>Bàn {selectedOrderForPayment.tableNumber}</strong></span>
+                <span>
+                  {selectedOrderForPayment.orderType === 'DINE_IN' && <>Số Bàn: <strong>Bàn {selectedOrderForPayment.tableNumber}</strong></>}
+                  {selectedOrderForPayment.orderType === 'DELIVERY' && <>Giao đến: <strong>{selectedOrderForPayment.deliveryAddress}</strong></>}
+                  {selectedOrderForPayment.orderType === 'PICKUP' && <>Hình thức: <strong>Đến Lấy</strong></>}
+                </span>
                 <span>Mã: <strong>{selectedOrderForPayment.orderCode}</strong></span>
               </div>
               <p className="text-[10px] text-slate-500">Thời gian: {new Date().toLocaleString('vi-VN')}</p>
@@ -562,6 +632,35 @@ function StaffDashboard() {
                 <span>TỔNG CỘNG:</span>
                 <span className="text-orange-600">{formatVND(selectedOrderForPayment.totalAmount)}</span>
               </div>
+            </div>
+
+            {/* Voucher Input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300">Mã Giảm Giá (nếu có):</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={voucherCodeInput}
+                  onChange={(e) => { setVoucherCodeInput(e.target.value.toUpperCase()); setAppliedVoucher(null); setVoucherError(''); }}
+                  placeholder="Nhập mã voucher..."
+                  className="flex-1 bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 outline-none uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleCheckVoucher}
+                  disabled={checkingVoucher || !voucherCodeInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold disabled:opacity-40"
+                >
+                  {checkingVoucher ? '...' : 'Kiểm Tra'}
+                </button>
+              </div>
+              {voucherError && <p className="text-[11px] text-red-400">{voucherError}</p>}
+              {appliedVoucher && (
+                <div className="flex justify-between text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg px-3 py-2 font-bold">
+                  <span>✓ Áp dụng "{appliedVoucher.code}"</span>
+                  <span>-{formatVND(appliedVoucher.discountAmount)}</span>
+                </div>
+              )}
             </div>
 
             {/* Payment Method Selector */}
@@ -583,7 +682,7 @@ function StaffDashboard() {
 
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                  onClick={() => { setPaymentMethod('BANK_TRANSFER'); handleFetchBankQr(selectedOrderForPayment.id); }}
                   className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
                     paymentMethod === 'BANK_TRANSFER'
                       ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow'
@@ -608,6 +707,28 @@ function StaffDashboard() {
                 </button>
               </div>
             </div>
+
+            {/* Bank Transfer QR Code */}
+            {paymentMethod === 'BANK_TRANSFER' && (
+              <div className="bg-slate-950 border border-blue-500/20 rounded-2xl p-4 flex flex-col items-center gap-2">
+                {loadingQr ? (
+                  <p className="text-xs text-slate-400 py-6">Đang tạo mã QR...</p>
+                ) : bankQr ? (
+                  <>
+                    <img src={bankQr.qrImageUrl} alt="VietQR" className="w-48 h-48 rounded-xl bg-white p-2" />
+                    <p className="text-[11px] text-slate-400 text-center">
+                      Đưa mã này cho khách quét bằng <strong className="text-blue-400">app ngân hàng bất kỳ</strong> để chuyển khoản
+                    </p>
+                    <p className="text-[10px] text-slate-500">Nội dung CK: <span className="font-mono text-amber-400">{bankQr.transferContent}</span></p>
+                    <p className="text-[10px] text-amber-500/80 text-center pt-1">
+                      ⚠️ Sau khi khách chuyển khoản, kiểm tra sao kê/thông báo ngân hàng rồi bấm "Xác Nhận Đã Thu Tiền" bên dưới.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-red-400 py-6">Không tạo được mã QR, vui lòng thử lại.</p>
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">

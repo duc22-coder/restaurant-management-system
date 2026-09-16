@@ -26,7 +26,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Override
     @Transactional(readOnly = true)
     public List<MenuItemResponse> getAllMenuItems() {
-        return menuItemRepository.findAll().stream()
+        return menuItemRepository.findAllWithCategory().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

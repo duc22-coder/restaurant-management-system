@@ -27,7 +27,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        return path.startsWith("/api/customer") || path.startsWith("/api/auth") || path.equals("/api/health");
+        // Lưu ý: /api/customer/** vẫn phải chạy qua filter này (dù permitAll ở SecurityConfig)
+        // để nhận diện Customer đã đăng nhập (đơn hàng gắn tài khoản, xem lịch sử, cập nhật hồ sơ...).
+        // Khách vãng lai không có token vẫn đi qua bình thường, chỉ đơn giản là không có Authentication nào được set.
+        // Chỉ bỏ qua đúng 2 endpoint không cần token: login và register. /api/auth/me BẮT BUỘC phải qua filter
+        // để xác thực (nếu không sẽ luôn trả 401 dù token hợp lệ - đây là bug đã sửa).
+        return path.equals("/api/auth/login") || path.equals("/api/auth/register") || path.equals("/api/health");
     }
 
     @Override

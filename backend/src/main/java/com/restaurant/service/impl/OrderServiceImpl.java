@@ -8,14 +8,17 @@ import com.restaurant.entity.MenuItem;
 import com.restaurant.entity.Order;
 import com.restaurant.entity.OrderItem;
 import com.restaurant.entity.RestaurantTable;
+import com.restaurant.entity.User;
 import com.restaurant.enums.MenuItemStatus;
 import com.restaurant.enums.OrderItemStatus;
 import com.restaurant.enums.OrderStatus;
+import com.restaurant.enums.OrderType;
 import com.restaurant.enums.TableStatus;
 import com.restaurant.repository.MenuItemRepository;
 import com.restaurant.repository.OrderItemRepository;
 import com.restaurant.repository.OrderRepository;
 import com.restaurant.repository.RestaurantTableRepository;
+import com.restaurant.repository.UserRepository;
 import com.restaurant.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,27 +38,54 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final RestaurantTableRepository tableRepository;
     private final MenuItemRepository menuItemRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
-    public OrderResponse createCustomerOrder(OrderRequest request) {
-        // 1. Kiểm tra Bàn tồn tại
-        RestaurantTable table = tableRepository.findById(request.getTableId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + request.getTableId()));
+    public OrderResponse createCustomerOrder(OrderRequest request, Long customerId) {
+        // 1. Xác định hình thức đặt món (mặc định DINE_IN nếu không truyền lên - giữ hành vi cũ cho khách quét QR)
+        OrderType orderType = request.getOrderType() != null ? request.getOrderType() : OrderType.DINE_IN;
 
-        // 2. Cập nhật trạng thái bàn sang OCCUPIED (Đang có khách) nếu bàn đang trống
-        if (table.getStatus() == TableStatus.AVAILABLE) {
-            table.setStatus(TableStatus.OCCUPIED);
-            tableRepository.save(table);
+        RestaurantTable table = null;
+        if (orderType == OrderType.DINE_IN) {
+            // Ăn tại bàn: bắt buộc phải có bàn hợp lệ
+            if (request.getTableId() == null) {
+                throw new RuntimeException("Vui lòng chọn bàn khi đặt món ăn tại chỗ!");
+            }
+            table = tableRepository.findById(request.getTableId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + request.getTableId()));
+
+            // Cập nhật trạng thái bàn sang OCCUPIED (Đang có khách) nếu bàn đang trống
+            if (table.getStatus() == TableStatus.AVAILABLE) {
+                table.setStatus(TableStatus.OCCUPIED);
+                tableRepository.save(table);
+            }
+        } else if (orderType == OrderType.DELIVERY) {
+            // Giao tận nơi: bắt buộc phải có địa chỉ giao hàng
+            if (request.getDeliveryAddress() == null || request.getDeliveryAddress().isBlank()) {
+                throw new RuntimeException("Vui lòng nhập địa chỉ giao hàng!");
+            }
         }
+        // PICKUP (đến lấy): không cần bàn, không cần địa chỉ
 
-        // 3. Sinh mã Đơn hàng ngẫu nhiên độc nhất (Mẫu: ORD-TIMESTAMP-RANDOM4)
-        String orderCode = "ORD-" + (System.currentTimeMillis() / 1000) + "-" + String.format("%04d", (int)(Math.random() * 10000));
+        // 2. Sinh mã Đơn hàng ngẫu nhiên độc nhất (Mẫu: ORD-TIMESTAMP-RANDOM6)
+        // Dùng 6 chữ số ngẫu nhiên (thay vì 4) để giảm rủi ro trùng mã khi nhiều đơn được tạo cùng lúc (unique constraint).
+        String orderCode = "ORD-" + (System.currentTimeMillis() / 1000) + "-" + String.format("%06d", (int) (Math.random() * 1_000_000));
+
+        // 3. Nếu khách đã đăng nhập (có customerId từ JWT) thì gắn đơn hàng vào tài khoản để lưu lịch sử
+        User customer = null;
+        if (customerId != null) {
+            customer = userRepository.findById(customerId).orElse(null);
+        }
 
         // 4. Khởi tạo đối tượng Order
         Order order = Order.builder()
                 .orderCode(orderCode)
+                .orderType(orderType)
                 .table(table)
+                .deliveryAddress(orderType == OrderType.DELIVERY ? request.getDeliveryAddress() : null)
+                .contactPhone(request.getContactPhone())
+                .customer(customer)
                 .status(OrderStatus.PENDING)
                 .note(request.getCustomerNote())
                 .totalAmount(BigDecimal.ZERO)
@@ -117,10 +147,28 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<OrderResponse> getMyOrders(Long customerId) {
+        return orderRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<OrderResponse> getAllActiveOrders() {
-        return orderRepository.findAll().stream()
+        return orderRepository.findAllWithDetails().stream()
                 .filter(order -> order.getStatus() != OrderStatus.COMPLETED && order.getStatus() != OrderStatus.CANCELLED)
                 .sorted(Comparator.comparing(Order::getCreatedAt))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getAllOrders(OrderStatus status) {
+        List<Order> orders = status != null ? orderRepository.findByStatus(status) : orderRepository.findAllWithDetails();
+        return orders.stream()
+                .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -134,8 +182,8 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(status);
         Order updated = orderRepository.save(order);
 
-        // Tự động giải phóng bàn nếu đơn hàng bị hủy hoặc hoàn tất thanh toán
-        if (status == OrderStatus.COMPLETED || status == OrderStatus.CANCELLED) {
+        // Tự động giải phóng bàn nếu đơn hàng bị hủy hoặc hoàn tất thanh toán (chỉ áp dụng đơn DINE_IN có bàn)
+        if ((status == OrderStatus.COMPLETED || status == OrderStatus.CANCELLED) && order.getTable() != null) {
             List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(order.getTable().getId());
             if (remainingActive.isEmpty()) {
                 RestaurantTable table = order.getTable();
@@ -199,8 +247,12 @@ public class OrderServiceImpl implements OrderService {
         return OrderResponse.builder()
                 .id(order.getId())
                 .orderCode(order.getOrderCode())
-                .tableId(order.getTable().getId())
-                .tableNumber(order.getTable().getTableNumber())
+                .orderType(order.getOrderType())
+                .tableId(order.getTable() != null ? order.getTable().getId() : null)
+                .tableNumber(order.getTable() != null ? order.getTable().getTableNumber() : null)
+                .deliveryAddress(order.getDeliveryAddress())
+                .contactPhone(order.getContactPhone())
+                .customerId(order.getCustomer() != null ? order.getCustomer().getId() : null)
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())
                 .customerNote(order.getNote())

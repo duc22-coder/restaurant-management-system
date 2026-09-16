@@ -23,3 +23,10 @@ jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: 86400000 # 24 Hours
 
+# Cấu hình tài khoản ngân hàng nhận thanh toán qua VietQR (đổi bằng biến môi trường khi deploy thật)
+restaurant:
+  bank:
+    bin: ${BANK_BIN:970436}                      # Mã BIN ngân hàng (970436 = Vietcombank, xem đầy đủ tại vietqr.io)
+    account-number: ${BANK_ACCOUNT_NUMBER:0123456789}
+    account-name: ${BANK_ACCOUNT_NAME:NHA HANG ABC}
+

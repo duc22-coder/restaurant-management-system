@@ -17,7 +17,10 @@ import {
   RefreshCw,
   ChefHat,
   ArrowUpRight,
-  CheckCircle2
+  CheckCircle2,
+  LayoutGrid,
+  ClipboardList,
+  Ticket
 } from 'lucide-react';
 
 function AdminDashboard() {
@@ -29,7 +32,9 @@ function AdminDashboard() {
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 15000);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchStats();
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -39,7 +44,7 @@ function AdminDashboard() {
       setStats(data);
     } catch (err) {
       console.error("Lỗi lấy dữ liệu thống kê Admin Dashboard:", err);
-    } fontally: {
+    } finally {
       setLoading(false);
     }
   };
@@ -139,6 +144,70 @@ function AdminDashboard() {
               </div>
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/tables')}
+            className="bg-slate-900 border border-slate-800 hover:border-teal-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-teal-500/10 text-teal-400 group-hover:scale-110 transition">
+                <LayoutGrid className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Quản Lý Bàn</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Tables & Zones</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-teal-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/users')}
+            className="bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Quản Lý Người Dùng</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Staff & Accounts</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/orders')}
+            className="bg-slate-900 border border-slate-800 hover:border-pink-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-pink-500/10 text-pink-400 group-hover:scale-110 transition">
+                <ClipboardList className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Giám Sát Đơn Hàng</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Order Monitoring</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-pink-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/vouchers')}
+            className="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">
+                <Ticket className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Quản Lý Voucher</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Discount Codes</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
           </button>
         </div>
 

@@ -21,8 +21,10 @@ const ProtectedRoute = ({ allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    // Nếu role không khớp, điều hướng về đúng Dashboard được phép
-    return user?.role === 'ADMIN' ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/staff/dashboard" replace />;
+    // Nếu role không khớp, điều hướng về đúng khu vực được phép của role đó
+    if (user?.role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
+    if (user?.role === 'CUSTOMER') return <Navigate to="/menu" replace />;
+    return <Navigate to="/staff/dashboard" replace />;
   }
 
   return <Outlet />;

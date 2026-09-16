@@ -18,6 +18,7 @@ public class UserResponse {
     private String fullName;
     private String email;
     private String phone;
+    private String address;
     private Role role;
     private UserStatus status;
     private LocalDateTime createdAt;

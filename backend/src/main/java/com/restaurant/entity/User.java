@@ -33,6 +33,9 @@ public class User {
 
     private String phone;
 
+    @Column(columnDefinition = "TEXT")
+    private String address;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role;

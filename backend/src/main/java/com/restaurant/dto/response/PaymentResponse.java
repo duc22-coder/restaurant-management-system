@@ -23,6 +23,8 @@ public class PaymentResponse {
     private Long tableId;
     private String tableNumber;
     private BigDecimal amount;
+    private String voucherCode;
+    private BigDecimal discountAmount;
     private PaymentMethod paymentMethod;
     private PaymentStatus status;
     private LocalDateTime paidAt;

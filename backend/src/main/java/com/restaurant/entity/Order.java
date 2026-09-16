@@ -2,6 +2,7 @@ package com.restaurant.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.restaurant.enums.OrderStatus;
+import com.restaurant.enums.OrderType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -11,7 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", indexes = {
+        @Index(name = "idx_orders_status", columnList = "status"),
+        @Index(name = "idx_orders_created_at", columnList = "created_at")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,13 +27,34 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Nullable: chỉ bắt buộc có giá trị khi orderType = DINE_IN. Đơn Pickup/Delivery không gắn bàn.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "table_id", nullable = false)
+    @JoinColumn(name = "table_id", nullable = true)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private RestaurantTable table;
 
+    // Khách hàng đã đăng nhập đặt đơn này (null nếu là khách vãng lai qua QR bàn)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private User customer;
+
     @Column(name = "order_code", nullable = false, unique = true, length = 50)
     private String orderCode;
+
+    // Hình thức đặt món: Ăn tại bàn / Đến lấy / Giao tận nơi
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 20)
+    @Builder.Default
+    private OrderType orderType = OrderType.DINE_IN;
+
+    // Chỉ dùng khi orderType = DELIVERY
+    @Column(name = "delivery_address", columnDefinition = "TEXT")
+    private String deliveryAddress;
+
+    // Chỉ dùng khi orderType = DELIVERY hoặc PICKUP, để liên hệ khi món sẵn sàng/giao hàng
+    @Column(name = "contact_phone", length = 20)
+    private String contactPhone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

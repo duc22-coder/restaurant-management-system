@@ -1,136 +1,249 @@
-# Hệ Thống Quản Lý & Đặt Món Nhà Hàng (Restaurant Management System)
+# 🍽️ Hệ Thống Quản Lý & Đặt Món Nhà Hàng (Restaurant Management System)
 
-Dự án Web App Quản lý nhà hàng hiện đại với giao diện Website chuẩn **Desktop & Mobile Responsive**, phục vụ quy trình gọi món và vận hành nhà hàng toàn diện:
-- **Khách Hàng**: Truy cập trực tiếp Website xem toàn bộ thực đơn ngay lập tức (không bắt buộc quét QR), tìm kiếm & lọc món, chọn bàn linh hoạt hoặc đặt mang về/giao tận nơi, giỏ hàng trượt cao cấp, thanh toán chuyển khoản VietQR và theo dõi đơn thời gian thực.
-- **Nhân Viên (Staff)**: Tiếp nhận đơn gọi món tại các bàn theo thời gian thực, chuyển trạng thái chế biến -> hoàn tất, quản lý trạng thái bàn ăn và xác nhận thanh toán.
-- **Quản Lý (Admin)**: Dashboard thống kê doanh thu, quản lý danh mục, thực đơn món ăn, quản lý bàn ăn, người dùng và các chương trình khuyến mãi (Vouchers).
+<div align="center">
+
+![Java](https://img.shields.io/badge/Java-17-orange.svg?style=for-the-badge&logo=openjdk)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.x-brightgreen.svg?style=for-the-badge&logo=springboot)
+![React](https://img.shields.io/badge/React-18-blue.svg?style=for-the-badge&logo=react)
+![Vite](https://img.shields.io/badge/Vite-5.x-purple.svg?style=for-the-badge&logo=vite)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-38bdf8.svg?style=for-the-badge&logo=tailwindcss)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-blue.svg?style=for-the-badge&logo=mysql)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?style=for-the-badge&logo=docker)
+
+**Giải pháp chuyển đổi số toàn diện cho nhà hàng & quán ăn hiện đại:**
+*Hỗ trợ đa kênh gọi món (Tại bàn, Mang về, Giao hàng) • Tích hợp VietQR động • Quản lý vận hành Bếp & Phục vụ • Báo cáo doanh thu thời gian thực.*
+
+</div>
+
+---
+
+## 📌 Mục Lục
+- [Giới Thiệu Hệ Thống](#-giới-thiệu-hệ-thống)
+- [Công Nghệ Sử Dụng](#-công-nghệ-sử-dụng)
+- [Tính Năng Nổi Bật](#-tính-năng-nổi-bật)
+  - [1. Phân Hệ Khách Hàng (Customer)](#1-phân-hệ-khách-hàng-customer)
+  - [2. Phân Hệ Nhân Viên Phục Vụ (Staff)](#2-phân-hệ-nhân-viên-phục-vụ-staff)
+  - [3. Phân Hệ Quản Trị Viên (Admin)](#3-phân-hệ-quản-trị-viên-admin)
+- [Tài Khoản Mặc Định](#-tài-khoản-mặc-định)
+- [Hướng Dẫn Cài Đặt & Khởi Chạy](#-hướng-dẫn-cài-đặt--khởi-chạy)
+  - [Cách 1: Khởi chạy bằng Docker Compose (Khuyên dùng)](#cách-1-khởi-chạy-bằng-docker-compose-khuyên-dùng)
+  - [Cách 2: Khởi chạy thủ công (Local Development)](#cách-2-khởi-chạy-thủ-công-local-development)
+- [Danh Sách Cổng & Địa Chỉ Dịch Vụ](#-danh-sách-cổng--địa-chỉ-dịch-vụ)
+- [Cấu Trúc Thư Mục Dự Án](#-cấu-trúc-thư-mục-dự-án)
+- [Một Số Lỗi Thường Gặp & Cách Xử Lý](#-một-số-lỗi-thường-gặp--cách-xử-lý)
+
+---
+
+## 📖 Giới Thiệu Hệ Thống
+
+Hệ thống được thiết kế theo mô hình kiến trúc phân tầng (Client - Server) hiện đại, chuẩn **Responsive** mượt mà trên cả máy tính bàn (Desktop), máy tính bảng (Tablet) và điện thoại thông minh (Mobile):
+
+1. **Khách hàng**: Trải nghiệm thực đơn trực quan, tìm kiếm & lọc theo danh mục, chọn phương thức nhận món (Ăn tại bàn, Đến lấy, Giao hàng), gửi ghi chú trực tiếp cho đầu bếp, thanh toán qua mã chuyển khoản VietQR tự động.
+2. **Nhân viên (Staff/Kitchen)**: Nhận thông báo đơn món tức thì, theo dõi trạng thái món qua quy trình `Chờ xử lý` ➔ `Đang chế biến` ➔ `Đã lên món` ➔ `Đã thanh toán`, quản lý trạng thái bàn ăn.
+3. **Quản lý (Admin)**: Thống kê doanh thu, đơn hàng, khách hàng; quản lý danh mục, món ăn, bàn ăn, tài khoản nhân viên và mã giảm giá (Vouchers).
 
 ---
 
 ## 🛠️ Công Nghệ Sử Dụng
 
-- **Frontend**: React 18, Vite, Tailwind CSS, React Router v6, Axios, Lucide Icons
-- **Backend**: Java 17, Spring Boot 3.3.x, Spring Data JPA, Spring Security, JWT, Lombok, Maven
-- **Database**: MySQL 8.0
-- **Thanh toán**: Tích hợp mã VietQR động theo đơn hàng
-- **DevOps**: Docker, Docker Compose
+### Frontend
+- **Framework & Build tool**: React 18, Vite
+- **Styling**: Tailwind CSS, Lucide Icons, Modern Glassmorphism & Micro-animations
+- **Routing & State**: React Router v6, React Context API (`AuthContext`, `CartContext`)
+- **HTTP Client**: Axios (Cấu hình Interceptor tự động đính kèm JWT và xử lý Token hết hạn)
+
+### Backend
+- **Core Framework**: Java 17, Spring Boot 3.3.x
+- **Bảo mật & Phân quyền**: Spring Security, JSON Web Token (JWT)
+- **Truy xuất dữ liệu**: Spring Data JPA / Hibernate
+- **Database Migration & Seeding**: Tự động sinh bảng và nạp dữ liệu mẫu ban đầu (`DataInitializer`)
+- **Build tool**: Apache Maven
+
+### Cơ Sở Dữ Liệu & DevOps
+- **Database**: MySQL 8.0 (Hỗ trợ cấu hình UTF-8mb4 chuẩn tiếng Việt)
+- **Containerization**: Docker, Dockerfile đa tầng (Multi-stage build), Docker Compose
+- **Web Server**: Nginx Alpine làm Reverse Proxy và SPA Server
 
 ---
 
-## 🌟 Các Tính Năng Trọng Tâm
+## 🌟 Tính Năng Nổi Bật
 
-### 1. Phân Hệ Khách Hàng (Customer Web)
-- **Truy cập tự do**: Vào thẳng trang chủ xem ngay toàn bộ danh mục & món ăn dạng lưới (Grid) 4 cột màn hình rộng, không cần quét mã QR mới xem được.
-- **Hỗ trợ QR Code bàn**: Quét QR bàn ăn (`/menu?tableId=X`) vẫn tự động nhận diện và gán đúng bàn.
-- **Đa dạng hình thức đặt món**:
-  - 🍽️ **Ăn Tại Bàn**: Tự chọn bàn từ sơ đồ bàn (B01 -> B08) hoặc nhận diện từ QR.
-  - 🛍️ **Đến Lấy (Takeaway)**: Đặt trước mang về, chỉ cần số điện thoại.
-  - 🛵 **Giao Tận Nơi (Delivery)**: Nhập địa chỉ và số điện thoại giao hàng.
-- **Giỏ hàng Slide-Over**: Panel giỏ hàng trượt mượt mà từ cạnh phải, thêm ghi chú riêng từng món hoặc ghi chú toàn đơn cho nhà bếp.
-- **Thanh toán & Theo dõi đơn**: Gửi yêu cầu tính tiền tại bàn, tạo mã VietQR chuyển khoản ngân hàng tự động, theo dõi tiến độ đơn hàng tự làm mới mỗi 8 giây.
+### 1. Phân Hệ Khách Hàng (Customer)
+- 🌐 **Duyệt Menu Trực Tiếp**: Xem toàn bộ thực đơn ngay trên trang chủ dạng lưới hiện đại, có hỗ trợ tìm kiếm theo tên và lọc theo từng danh mục.
+- 📱 **Hỗ Trợ Quét Mã QR Bàn**: Truy cập qua URL kèm tham số bàn (ví dụ: `/menu?tableId=1`) sẽ tự động nhận diện và gán đúng bàn ăn.
+- 🔄 **3 Hình Thức Đặt Món Linh Hoạt**:
+  - 🍽️ **Ăn Tại Bàn (Dine-in)**: Chọn bàn trực tiếp trên sơ đồ bàn (B01 ➔ B08) hoặc nhận diện từ mã QR.
+  - 🛍️ **Đến Lấy (Takeaway / Pickup)**: Đặt trước mang về, chỉ cần nhập số điện thoại liên hệ.
+  - 🛵 **Giao Tận Nơi (Delivery)**: Đặt hàng giao tận nơi, nhập địa chỉ nhận hàng và số điện thoại.
+- 🛒 **Giỏ Hàng Slide-Over Cao Cấp**: Panel trượt từ cạnh phải mượt mà, thêm ghi chú chi tiết cho từng món (ví dụ: *ít đường, không cay*) hoặc ghi chú đơn hàng.
+- 💳 **Thanh Toán VietQR Động**: Tạo mã QR thanh toán ngân hàng có sẵn số tiền và nội dung chuyển khoản theo đúng mã đơn hàng.
+- ⏱️ **Theo Dõi Tiến Độ Đơn Thời Gian Thực**: Tự động đồng bộ và hiển thị quy trình chế biến món ăn.
 
-### 2. Phân Hệ Nhân Viên (Staff Dashboard)
-- Sơ đồ trực quan trạng thái bàn ăn (Trống / Có khách / Đang yêu cầu tính tiền).
-- Tiếp nhận đơn hàng theo thời gian thực: `Đã Nhận` -> `Đang Chế Biến` -> `Đã Lên Bàn` -> `Đã Thanh Toán`.
-- Xử lý yêu cầu thanh toán và giải phóng bàn.
+### 2. Phân Hệ Nhân Viên Phục Vụ (Staff)
+- 🗺️ **Sơ Đồ Bàn Trực Quan**: Phân biệt rõ trạng thái bàn: `Trống (Xanh)`, `Có khách (Cam)`, `Yêu cầu tính tiền (Đỏ)`.
+- 📋 **Quản Lý & Tiếp Nhận Đơn Món**:
+  - Nhận đơn gọi món mới theo thời gian thực.
+  - Chuyển trạng thái quy trình: `PENDING` (Chờ xử lý) ➔ `PREPARING` (Đang chế biến) ➔ `READY` (Đã xong) ➔ `SERVED` (Đã lên bàn).
+- 💵 **Xác Nhận Thanh Toán & Giải Phóng Bàn**: Hỗ trợ nhiều hình thức thanh toán (Tiền mặt, VietQR, Chuyển khoản), giải phóng bàn để đón khách mới.
 
-### 3. Phân Hệ Quản Trị (Admin Dashboard)
-- Thống kê doanh thu, đơn hàng, khách hàng.
-- Quản lý danh mục món ăn (Thêm/Sửa/Xóa, ảnh danh mục).
-- Quản lý thực đơn (Món ăn, giá bán, mô tả, hình ảnh, bật/tắt trạng thái Còn món / Tạm hết).
-- Quản lý bàn ăn và tạo mã QR Code cho từng bàn.
-- Quản lý tài khoản người dùng và phân quyền (Admin, Staff, Customer).
-- Quản lý mã giảm giá (Vouchers).
-
----
-
-## 🔑 Tài Khoản Mặc Định (Hệ thống tự tạo)
-
-| Vai trò | Tên đăng nhập | Mật khẩu | Quyền hạn |
-| :--- | :--- | :--- | :--- |
-| **Quản trị viên** | `admin` | `admin123` | Toàn quyền quản trị hệ thống (`/admin/dashboard`) |
-| **Nhân viên phục vụ** | `staff` | `staff123` | Nhận đơn, chế biến, quản lý bàn (`/staff/dashboard`) |
-| **Khách hàng** | Tự do xem món & đặt món | - | Đăng ký tài khoản tại `/register` để lưu lịch sử |
+### 3. Phân Hệ Quản Trị Viên (Admin)
+- 📊 **Dashboard Thống Kê**: Tổng doanh thu, số lượng đơn hàng, số khách hàng mới, biểu đồ phân tích.
+- 📂 **Quản Lý Danh Mục**: Thêm, sửa, xóa, tải ảnh đại diện cho các nhóm món ăn (Khai vị, Món chính, Tráng miệng, Đồ uống,...).
+- 🍲 **Quản Lý Thực Đơn (Menu)**: Thêm mới món ăn, giá tiền, mô tả chi tiết, hình ảnh, chuyển đổi trạng thái `Còn món` / `Hết món`.
+- 🪑 **Quản Lý Bàn Ăn**: Tạo sơ đồ bàn, tùy chỉnh sức chứa và tự động xuất mã QR Code cho từng bàn.
+- 👥 **Quản Lý Người Dùng**: Quản lý danh sách tài khoản, phân quyền vai trò (`ADMIN`, `STAFF`, `CUSTOMER`).
+- 🎟️ **Quản Lý Khuyến Mãi (Vouchers)**: Tạo mã giảm giá theo tỷ lệ phần trăm (%) hoặc số tiền cố định, thời hạn áp dụng.
 
 ---
 
-## 🚀 Hướng Dẫn Khởi Chạy Project
+## 🔑 Tài Khoản Mặc Định
 
-### Cách 1: Chạy bằng Docker Compose (Khuyên dùng)
+Hệ thống tự động khởi tạo các tài khoản mẫu khi khởi chạy lần đầu:
 
-> **Yêu cầu**: Đã bật ứng dụng Docker Desktop.
+| Phân quyền | Tài khoản | Mật khẩu | Trang quản lý | Quyền hạn chính |
+| :--- | :--- | :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin` | `admin123` | `/admin/dashboard` | Toàn quyền kiểm soát và cấu hình hệ thống |
+| **Nhân viên (Staff)** | `staff` | `staff123` | `/staff/dashboard` | Nhận đơn, đổi trạng thái món, quản lý bàn |
+| **Khách hàng** | Tự do gọi món | - | `/menu` | Xem menu, đặt món, đăng ký tài khoản tại `/register` |
 
-1. Mở terminal tại thư mục gốc dự án (`d:\Luucode\banhang`):
+---
+
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
+
+### Cách 1: Khởi chạy bằng Docker Compose (Khuyên dùng)
+
+> **Yêu cầu**: Máy đã cài đặt và đang bật **Docker Desktop**.
+
+1. **Mở Terminal/PowerShell tại thư mục gốc dự án** (`banhang`):
    ```bash
+   # Build và khởi chạy toàn bộ các containers ở chế độ chạy nền
    docker compose up -d --build
    ```
-2. Truy cập ứng dụng:
-   - **Giao diện Web Khách Hàng**: [http://localhost:3000](http://localhost:3000)
-   - **Backend API**: [http://localhost:8081/api](http://localhost:8081/api)
-   - **Database MySQL**: cổng `3307`
-3. Dừng ứng dụng:
+
+2. **Kiểm tra trạng thái các container**:
+   ```bash
+   docker compose ps
+   ```
+   *(Đảm bảo cả 3 dịch vụ `restaurant_mysql`, `restaurant_backend`, `restaurant_frontend` đều ở trạng thái `Up` hoặc `healthy`)*.
+
+3. **Truy cập ứng dụng**:
+   - 🌐 **Trang Web Khách Hàng**: [http://localhost:3000](http://localhost:3000)
+   - ⚙️ **Backend API**: [http://localhost:8081/api](http://localhost:8081/api)
+
+4. **Dừng hệ thống**:
    ```bash
    docker compose down
    ```
 
 ---
 
-### Cách 2: Chạy Thủ Công (Local Development)
+### Cách 2: Khởi chạy thủ công (Local Development)
 
-#### Bước 1: Khởi động Database MySQL
-Chạy container MySQL riêng qua Docker:
+> **Yêu cầu**: 
+> - Java Development Kit (JDK 17+)
+> - Node.js (v18+) & npm
+> - Maven (hoặc dùng `./mvnw`)
+> - Docker (để chạy MySQL) hoặc MySQL 8.0 cài sẵn trên máy
+
+#### Bước 1: Khởi động cơ sở dữ liệu MySQL
+Sử dụng Docker để khởi chạy MySQL nhanh:
 ```bash
 docker compose up -d mysqldb
 ```
 *(MySQL sẽ chạy tại cổng `3307`, user: `restaurant_user`, password: `restaurant_password`, database: `restaurant_db`)*.
 
-#### Bước 2: Khởi động Backend (Spring Boot)
-Mở terminal thư mục backend:
+#### Bước 2: Khởi chạy Backend (Spring Boot)
 ```bash
 cd backend
-mvn spring-boot:run
+mvn clean spring-boot:run
 ```
-- Backend sẽ chạy tại: **`http://localhost:8081`**
-- Hệ thống tự động tạo bảng dữ liệu và nạp sẵn dữ liệu mẫu (món ăn, danh mục, bàn, tài khoản).
+- Backend sẽ khởi chạy tại: **`http://localhost:8081`**
+- Hibernate sẽ tự động tạo bảng và nạp dữ liệu mẫu ban đầu.
 
-#### Bước 3: Khởi động Frontend (React Vite)
-Mở terminal thư mục frontend:
+#### Bước 3: Khởi chạy Frontend (React Vite)
+Mở một cửa sổ Terminal mới:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-- Frontend sẽ chạy tại: **`http://localhost:5173`**
-- Vite đã cấu hình proxy tự động chuyển tiếp request `/api` sang backend port `8081`.
+- Giao diện Frontend sẽ khởi chạy tại: **`http://localhost:5173`**
 
 ---
 
-## 📁 Cấu Trúc Thư Mục
+## 🌐 Danh Sách Cổng & Địa Chỉ Dịch Vụ
+
+| Dịch vụ | Môi trường Docker | Môi trường Local Dev | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web** | `http://localhost:3000` | `http://localhost:5173` | Giao diện React SPA |
+| **Backend API** | `http://localhost:8081` | `http://localhost:8081` | Spring Boot REST API |
+| **MySQL Database** | `localhost:3307` | `localhost:3307` | Database `restaurant_db` |
+
+---
+
+## 📁 Cấu Trúc Thư Mục Dự Án
 
 ```text
 banhang/
-├── backend/                  # Mã nguồn Spring Boot Backend
+├── backend/                              # Mã nguồn Spring Boot REST API
 │   ├── src/main/java/com/restaurant/
-│   │   ├── config/          # Cấu hình Security, JWT, CORS, DataInitializer
-│   │   ├── controller/      # REST API Controllers (Customer, Staff, Admin, Auth)
-│   │   ├── dto/             # Request & Response DTOs
-│   │   ├── entity/          # JPA Entities (User, MenuItem, Order, Table, ...)
-│   │   ├── repository/      # Spring Data JPA Repositories
-│   │   └── service/         # Business Logic Services
-│   └── pom.xml
+│   │   ├── config/                      # Cấu hình Security, JWT, CORS, DataInitializer
+│   │   ├── controller/                  # REST Controllers (Auth, Customer, Staff, Admin)
+│   │   ├── dto/                         # Request & Response Data Transfer Objects
+│   │   ├── entity/                      # JPA Entities (User, MenuItem, Order, Table, ...)
+│   │   ├── repository/                  # Spring Data JPA Repositories
+│   │   ├── security/                    # JWT Filters, UserDetails & Authentication
+│   │   └── service/                     # Xử lý nghiệp vụ (Business Logic)
+│   ├── src/main/resources/
+│   │   └── application.yml              # File cấu hình backend (Port 8081, DB, JWT, VietQR)
+│   ├── Dockerfile                       # Multi-stage Docker build cho Backend
+│   └── pom.xml                          # Maven dependencies
 │
-├── frontend/                 # Mã nguồn React Vite Frontend
+├── frontend/                             # Mã nguồn React Vite Frontend
 │   ├── src/
-│   │   ├── api/             # Cấu hình Axios Client & Interceptors
-│   │   ├── context/         # AuthContext, CartContext
+│   │   ├── api/                         # Cấu hình Axios Client & Interceptor
+│   │   ├── assets/                      # Hình ảnh & icons tĩnh
+│   │   ├── components/                  # Các UI components dùng chung (Navbar, Modal, ...)
+│   │   ├── context/                     # Quản lý State toàn cục (AuthContext, CartContext)
 │   │   ├── pages/
-│   │   │   ├── customer/    # Trang thực đơn web rộng, tài khoản, đăng ký
-│   │   │   ├── staff/       # Dashboard phục vụ & nhận đơn
-│   │   │   ├── admin/       # Dashboard & quản trị danh mục, menu, bàn, users
-│   │   │   └── auth/        # Trang đăng nhập
-│   │   └── routes/          # Cấu hình định tuyến & phân quyền ProtectedRoute
-│   └── package.json
+│   │   │   ├── admin/                   # Trang quản trị (Dashboard, Menu, Bàn, Khuyến mãi)
+│   │   │   ├── auth/                    # Trang đăng nhập & đăng ký
+│   │   │   ├── customer/                # Trang xem menu, đặt món, chọn bàn, giỏ hàng
+│   │   │   └── staff/                   # Trang tiếp nhận đơn và phục vụ bàn
+│   │   └── routes/                      # Điều hướng trang & bảo vệ Route (ProtectedRoute)
+│   ├── nginx.conf                       # Cấu hình Nginx reverse proxy & SPA routing
+│   ├── Dockerfile                       # Multi-stage Docker build (Node build -> Nginx serve)
+│   ├── tailwind.config.js               # Cấu hình giao diện Tailwind CSS
+│   └── vite.config.js                   # Cấu hình Vite & Proxy /api
 │
-├── docker-compose.yml        # Điều phối Docker (MySQL, Backend, Frontend)
-└── .env                      # Cấu hình biến môi trường
+├── docker-compose.yml                    # File điều phối Docker (MySQL, Backend, Frontend)
+├── .env                                  # Biến môi trường hệ thống
+└── README.md                             # Tài liệu hướng dẫn dự án
 ```
+
+---
+
+## 🔧 Một Số Lỗi Thường Gặp & Cách Xử Lý
+
+### 1. Không kết nối được Backend / Frontend khi chạy Docker
+- Đảm bảo các port `3000`, `8081`, `3307` trên máy bạn không bị chiếm dụng bởi ứng dụng khác.
+- Chạy lệnh sau để build lại từ đầu không dùng cache:
+  ```bash
+  docker compose down
+  docker compose up -d --build
+  ```
+
+### 2. Lỗi 404 khi F5 (Refresh) trang trên giao diện Docker
+- Đã được giải quyết bằng file [frontend/nginx.conf](file:///d:/Luucode/banhang/frontend/nginx.conf) với lệnh `try_files $uri $uri/ /index.html;`.
+
+### 3. Đổi thông tin tài khoản ngân hàng nhận tiền VietQR
+- Mở file `.env` hoặc [backend/src/main/resources/application.yml](file:///d:/Luucode/banhang/backend/src/main/resources/application.yml) và chỉnh sửa các tham số:
+  - `BANK_BIN`: Mã định danh ngân hàng (Ví dụ: `970436` là Vietcombank).
+  - `BANK_ACCOUNT_NUMBER`: Số tài khoản ngân hàng nhận tiền.
+  - `BANK_ACCOUNT_NAME`: Tên chủ tài khoản ngân hàng (viết hoa không dấu).
+
+---
+
+<div align="center">
+  <sub>Phát triển và tối ưu cho quy trình vận hành nhà hàng hiện đại.</sub>
+</div>

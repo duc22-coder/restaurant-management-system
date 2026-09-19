@@ -26,8 +26,9 @@ services:
     container_name: restaurant_backend
     restart: always
     ports:
-      - "${SPRING_LOCAL_PORT}:8080"
+      - "${SPRING_LOCAL_PORT}:8081"
     environment:
+      SERVER_PORT: 8081
       SPRING_DATASOURCE_URL: jdbc:mysql://mysqldb:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}

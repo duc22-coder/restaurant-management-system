@@ -17,10 +17,13 @@ import com.restaurant.enums.TableStatus;
 import com.restaurant.repository.MenuItemRepository;
 import com.restaurant.repository.OrderItemRepository;
 import com.restaurant.repository.OrderRepository;
+import com.restaurant.repository.ProductDetailRepository;
+import com.restaurant.repository.ProductRecipeRepository;
 import com.restaurant.repository.RestaurantTableRepository;
 import com.restaurant.repository.UserRepository;
 import com.restaurant.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +35,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -39,6 +43,8 @@ public class OrderServiceImpl implements OrderService {
     private final RestaurantTableRepository tableRepository;
     private final MenuItemRepository menuItemRepository;
     private final UserRepository userRepository;
+    private final ProductRecipeRepository productRecipeRepository;
+    private final ProductDetailRepository productDetailRepository;
 
     @Override
     @Transactional
@@ -182,6 +188,11 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(status);
         Order updated = orderRepository.save(order);
 
+        // Trừ tồn kho nguyên liệu theo công thức TPSP khi đơn sang PROCESSING hoặc COMPLETED
+        if ((status == OrderStatus.PROCESSING || status == OrderStatus.COMPLETED) && !Boolean.TRUE.equals(order.getStockDeducted())) {
+            deductStockForOrder(order);
+        }
+
         // Tự động giải phóng bàn nếu đơn hàng bị hủy hoặc hoàn tất thanh toán (chỉ áp dụng đơn DINE_IN có bàn)
         if ((status == OrderStatus.COMPLETED || status == OrderStatus.CANCELLED) && order.getTable() != null) {
             List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(order.getTable().getId());
@@ -193,6 +204,36 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return mapToResponse(updated);
+    }
+
+    private void deductStockForOrder(Order order) {
+        if (Boolean.TRUE.equals(order.getStockDeducted())) {
+            return;
+        }
+        if (order.getOrderItems() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                if (item.getMenuItem() != null) {
+                    List<com.restaurant.entity.ProductRecipe> recipes = productRecipeRepository.findByProductId(item.getMenuItem().getId());
+                    for (com.restaurant.entity.ProductRecipe recipe : recipes) {
+                        com.restaurant.entity.ProductDetail detail = recipe.getIngredientDetail();
+                        if (detail != null) {
+                            double needed = (recipe.getQuantity() != null ? recipe.getQuantity() : 0.0) * (item.getQuantity() != null ? item.getQuantity() : 1);
+                            double current = detail.getStockQuantity() != null ? detail.getStockQuantity() : 0.0;
+                            double after = Math.max(0.0, current - needed);
+                            detail.setStockQuantity(after);
+                            if (after <= 0) {
+                                detail.setStatus(com.restaurant.enums.ProductDetailStatus.OUT_OF_STOCK);
+                            }
+                            productDetailRepository.save(detail);
+                            log.info("Trừ kho TPSP cho món '{}' - Nguyên liệu '{}': {} - {} = {}",
+                                    item.getMenuItem().getName(), detail.getVariantName(), current, needed, after);
+                        }
+                    }
+                }
+            }
+        }
+        order.setStockDeducted(true);
+        orderRepository.save(order);
     }
 
     @Override

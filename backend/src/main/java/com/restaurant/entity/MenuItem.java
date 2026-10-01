@@ -41,6 +41,18 @@ public class MenuItem {
     @Column(nullable = false, length = 20)
     private MenuItemStatus status;
 
+    // 1 SP có nhiều SPCT (Sản phẩm chi tiết / Biến thể tồn kho)
+    @OneToMany(mappedBy = "menuItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties("menuItem")
+    @Builder.Default
+    private java.util.List<ProductDetail> details = new java.util.ArrayList<>();
+
+    // 1 SP có nhiều TPSP (Thành phần sản phẩm / Định lượng công thức)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties("product")
+    @Builder.Default
+    private java.util.List<ProductRecipe> recipes = new java.util.ArrayList<>();
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

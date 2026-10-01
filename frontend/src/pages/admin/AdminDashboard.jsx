@@ -20,7 +20,10 @@ import {
   CheckCircle2,
   LayoutGrid,
   ClipboardList,
-  Ticket
+  Ticket,
+  Boxes,
+  Truck,
+  Scale
 } from 'lucide-react';
 
 function AdminDashboard() {
@@ -208,6 +211,54 @@ function AdminDashboard() {
               </div>
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/inventory')}
+            className="bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition">
+                <Boxes className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Quản Lý Kho & SPCT</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Sản Phẩm Chi Tiết / Tồn Kho</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/purchases')}
+            className="bg-slate-900 border border-slate-800 hover:border-teal-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-teal-500/10 text-teal-400 group-hover:scale-110 transition">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Quản Lý Nhập Hàng</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Phiếu Nhập (ĐNP & CT ĐN)</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-teal-400 transition" />
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/recipes')}
+            className="bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition active:scale-95 group shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition">
+                <Scale className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Công Thức Định Lượng</p>
+                <p className="text-sm font-extrabold text-white mt-0.5">Thành Phần Sản Phẩm (TPSP)</p>
+              </div>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
           </button>
         </div>
 

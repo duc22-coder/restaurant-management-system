@@ -15,6 +15,9 @@ import AdminTablesPage from './pages/admin/AdminTablesPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminVouchersPage from './pages/admin/AdminVouchersPage';
+import AdminInventoryPage from './pages/admin/AdminInventoryPage';
+import AdminPurchasesPage from './pages/admin/AdminPurchasesPage';
+import AdminRecipesPage from './pages/admin/AdminRecipesPage';
 
 function App() {
   return (
@@ -45,6 +48,9 @@ function App() {
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/categories" element={<AdminCategoriesPage />} />
               <Route path="/admin/menu" element={<AdminMenuPage />} />
+              <Route path="/admin/inventory" element={<AdminInventoryPage />} />
+              <Route path="/admin/purchases" element={<AdminPurchasesPage />} />
+              <Route path="/admin/recipes" element={<AdminRecipesPage />} />
               <Route path="/admin/tables" element={<AdminTablesPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/orders" element={<AdminOrdersPage />} />

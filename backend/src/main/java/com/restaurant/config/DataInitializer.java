@@ -24,6 +24,10 @@ public class DataInitializer implements CommandLineRunner {
     private final CategoryRepository categoryRepository;
     private final MenuItemRepository menuItemRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ProductDetailRepository productDetailRepository;
+    private final ProductRecipeRepository productRecipeRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
+    private final PurchaseOrderItemRepository purchaseOrderItemRepository;
 
     @Override
     @Transactional
@@ -31,6 +35,7 @@ public class DataInitializer implements CommandLineRunner {
         seedUsers();
         seedTables();
         seedCategoriesAndMenuItems();
+        seedInventoryAndPurchases();
     }
 
     private void seedUsers() {
@@ -234,6 +239,226 @@ public class DataInitializer implements CommandLineRunner {
 
             menuItemRepository.saveAll(List.of(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12));
             log.info("Categories and Menu items created successfully!");
+        }
+    }
+
+    private void seedInventoryAndPurchases() {
+        if (productDetailRepository.count() == 0) {
+            log.info("Seeding SPCT (Product Details), TPSP (Recipes), and Purchase Orders...");
+
+            List<MenuItem> allMenuItems = menuItemRepository.findAll();
+            if (allMenuItems.isEmpty()) return;
+
+            // 1. Tạo Category "Nguyên Liệu Kho" để quản lý các mặt hàng nguyên vật liệu
+            Category rawCategory = Category.builder()
+                    .name("Nguyên Liệu & Kho")
+                    .description("Các mặt hàng nguyên liệu thô phục vụ chế biến trong bếp và quầy bar")
+                    .image("https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop")
+                    .status(CategoryStatus.ACTIVE)
+                    .build();
+            categoryRepository.save(rawCategory);
+
+            MenuItem rawBeef = MenuItem.builder()
+                    .category(rawCategory)
+                    .name("Thịt Bò Mỹ Tươi")
+                    .description("Thịt ba chỉ / thăn bò Mỹ nhập khẩu")
+                    .price(new BigDecimal("280000"))
+                    .image("https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=600&auto=format&fit=crop")
+                    .status(MenuItemStatus.AVAILABLE)
+                    .build();
+
+            MenuItem rawShrimp = MenuItem.builder()
+                    .category(rawCategory)
+                    .name("Tôm Sú Tươi Sống")
+                    .description("Tôm sú tươi sống loại 1 size 20 con/kg")
+                    .price(new BigDecimal("320000"))
+                    .image("https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop")
+                    .status(MenuItemStatus.AVAILABLE)
+                    .build();
+
+            MenuItem rawRice = MenuItem.builder()
+                    .category(rawCategory)
+                    .name("Gạo Thơm Lài Miên")
+                    .description("Gạo dẻo thơm chuyên dùng nấu cơm chiên cao cấp")
+                    .price(new BigDecimal("25000"))
+                    .image("https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop")
+                    .status(MenuItemStatus.AVAILABLE)
+                    .build();
+
+            MenuItem rawPeach = MenuItem.builder()
+                    .category(rawCategory)
+                    .name("Đào Ngâm Đóng Hộp")
+                    .description("Đào ngâm đường hộp sắt 820g")
+                    .price(new BigDecimal("45000"))
+                    .image("https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop")
+                    .status(MenuItemStatus.AVAILABLE)
+                    .build();
+
+            menuItemRepository.saveAll(List.of(rawBeef, rawShrimp, rawRice, rawPeach));
+
+            // 2. Tạo SPCT (Sản phẩm chi tiết / Biến thể tồn kho)
+            ProductDetail dBeef = ProductDetail.builder()
+                    .menuItem(rawBeef)
+                    .sku("SPCT-BEEF-KG")
+                    .variantName("Thịt Bò Mỹ (Kg)")
+                    .unit("Kg")
+                    .stockQuantity(30.0)
+                    .minStockAlert(5.0)
+                    .costPrice(new BigDecimal("240000"))
+                    .sellingPrice(new BigDecimal("280000"))
+                    .status(ProductDetailStatus.ACTIVE)
+                    .build();
+
+            ProductDetail dShrimp = ProductDetail.builder()
+                    .menuItem(rawShrimp)
+                    .sku("SPCT-SHRIMP-KG")
+                    .variantName("Tôm Sú Tươi (Kg)")
+                    .unit("Kg")
+                    .stockQuantity(20.0)
+                    .minStockAlert(4.0)
+                    .costPrice(new BigDecimal("270000"))
+                    .sellingPrice(new BigDecimal("320000"))
+                    .status(ProductDetailStatus.ACTIVE)
+                    .build();
+
+            ProductDetail dRice = ProductDetail.builder()
+                    .menuItem(rawRice)
+                    .sku("SPCT-RICE-KG")
+                    .variantName("Gạo Thơm (Kg)")
+                    .unit("Kg")
+                    .stockQuantity(100.0)
+                    .minStockAlert(15.0)
+                    .costPrice(new BigDecimal("18000"))
+                    .sellingPrice(new BigDecimal("25000"))
+                    .status(ProductDetailStatus.ACTIVE)
+                    .build();
+
+            ProductDetail dPeach = ProductDetail.builder()
+                    .menuItem(rawPeach)
+                    .sku("SPCT-PEACH-CAN")
+                    .variantName("Đào Hộp (Hộp 820g)")
+                    .unit("Hộp")
+                    .stockQuantity(50.0)
+                    .minStockAlert(10.0)
+                    .costPrice(new BigDecimal("35000"))
+                    .sellingPrice(new BigDecimal("45000"))
+                    .status(ProductDetailStatus.ACTIVE)
+                    .build();
+
+            // Tìm món Coca Cola và Trà Đào trong Menu để tạo SPCT
+            MenuItem cocaItem = allMenuItems.stream()
+                    .filter(m -> m.getName().toLowerCase().contains("coca"))
+                    .findFirst().orElse(null);
+            ProductDetail dCoca = null;
+            if (cocaItem != null) {
+                dCoca = ProductDetail.builder()
+                        .menuItem(cocaItem)
+                        .sku("SPCT-COCA-CAN")
+                        .variantName("Coca Lon 330ml")
+                        .unit("Lon")
+                        .stockQuantity(150.0)
+                        .minStockAlert(24.0)
+                        .costPrice(new BigDecimal("9500"))
+                        .sellingPrice(cocaItem.getPrice())
+                        .status(ProductDetailStatus.ACTIVE)
+                        .build();
+                productDetailRepository.save(dCoca);
+            }
+
+            productDetailRepository.saveAll(List.of(dBeef, dShrimp, dRice, dPeach));
+
+            // 3. Tạo TPSP (Thành phần sản phẩm / Công thức định lượng)
+            // Tìm món Cơm Chiên Hải Sản Hoàng Gia (nếu có)
+            MenuItem friedRiceItem = allMenuItems.stream()
+                    .filter(m -> m.getName().toLowerCase().contains("cơm chiên"))
+                    .findFirst().orElse(null);
+
+            if (friedRiceItem != null) {
+                ProductRecipe r1 = ProductRecipe.builder()
+                        .product(friedRiceItem)
+                        .ingredientDetail(dShrimp)
+                        .quantity(0.12) // 120g tôm cho mỗi đĩa cơm chiên
+                        .unit("Kg")
+                        .note("Tôm bóc nõn cắt hạt lựu")
+                        .build();
+
+                ProductRecipe r2 = ProductRecipe.builder()
+                        .product(friedRiceItem)
+                        .ingredientDetail(dRice)
+                        .quantity(0.20) // 200g gạo cho mỗi đĩa cơm
+                        .unit("Kg")
+                        .note("Gạo nấu cơm khô để nguội trước khi chiên")
+                        .build();
+
+                productRecipeRepository.saveAll(List.of(r1, r2));
+            }
+
+            // Tìm món Trà Đào Sả Tắc
+            MenuItem peachTeaItem = allMenuItems.stream()
+                    .filter(m -> m.getName().toLowerCase().contains("trà đào"))
+                    .findFirst().orElse(null);
+
+            if (peachTeaItem != null) {
+                ProductRecipe r3 = ProductRecipe.builder()
+                        .product(peachTeaItem)
+                        .ingredientDetail(dPeach)
+                        .quantity(0.25) // 1/4 hộp đào cho 1 ly
+                        .unit("Hộp")
+                        .note("2 lát đào ngâm + 30ml nước đào")
+                        .build();
+                productRecipeRepository.save(r3);
+            }
+
+            // 4. Tạo Phiếu nhập kho mẫu (ĐNP - PurchaseOrder & CT ĐN - PurchaseOrderItem)
+            User adminUser = userRepository.findByUsername("admin").orElse(null);
+            if (adminUser != null) {
+                PurchaseOrder po = PurchaseOrder.builder()
+                        .code("PN261001001")
+                        .creator(adminUser)
+                        .supplierName("Công Ty Nông Sản Thực Phẩm Sạch Đà Lạt")
+                        .supplierPhone("02838999999")
+                        .supplierAddress("45 Đường 3/2, Phường 11, Quận 10, TP.HCM")
+                        .status(PurchaseOrderStatus.COMPLETED)
+                        .note("Đợt nhập nguyên liệu tươi đầu tháng cho nhà hàng")
+                        .totalAmount(BigDecimal.ZERO)
+                        .build();
+
+                PurchaseOrderItem poi1 = PurchaseOrderItem.builder()
+                        .purchaseOrder(po)
+                        .productDetail(dBeef)
+                        .quantity(20.0)
+                        .unitPrice(new BigDecimal("240000"))
+                        .totalPrice(new BigDecimal("4800000"))
+                        .note("Thịt bò tươi đạt chuẩn VSATTP")
+                        .build();
+
+                PurchaseOrderItem poi2 = PurchaseOrderItem.builder()
+                        .purchaseOrder(po)
+                        .productDetail(dShrimp)
+                        .quantity(15.0)
+                        .unitPrice(new BigDecimal("270000"))
+                        .totalPrice(new BigDecimal("4050000"))
+                        .note("Tôm sú sống oxy tươi mới")
+                        .build();
+
+                PurchaseOrderItem poi3 = PurchaseOrderItem.builder()
+                        .purchaseOrder(po)
+                        .productDetail(dRice)
+                        .quantity(100.0)
+                        .unitPrice(new BigDecimal("18000"))
+                        .totalPrice(new BigDecimal("1800000"))
+                        .note("Bao 25kg nguyên đai nguyên kiện")
+                        .build();
+
+                BigDecimal total = poi1.getTotalPrice().add(poi2.getTotalPrice()).add(poi3.getTotalPrice());
+                po.setTotalAmount(total);
+                po.getItems().addAll(List.of(poi1, poi2, poi3));
+
+                purchaseOrderRepository.save(po);
+                log.info("Phiếu nhập kho ban đầu tạo thành công với tổng tiền: {}", total);
+            }
+
+            log.info("Seeding SPCT, TPSP and Purchase Orders completed successfully!");
         }
     }
 }

@@ -39,6 +39,17 @@ public class Order {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User customer;
 
+    // Nhân viên / Thu ngân phụ trách đơn (liên kết với TK - User trong sơ đồ ERD)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private User staff;
+
+    // Đánh dấu đơn hàng đã trừ kho nguyên liệu theo công thức TPSP hay chưa
+    @Column(name = "stock_deducted")
+    @Builder.Default
+    private Boolean stockDeducted = false;
+
     @Column(name = "order_code", nullable = false, unique = true, length = 50)
     private String orderCode;
 

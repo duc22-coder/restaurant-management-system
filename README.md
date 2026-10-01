@@ -62,6 +62,28 @@
 - **Quản lý bàn ăn**: Thêm bàn, cấu hình số ghế, tự động xuất liên kết và mã QR đặt món.
 - **Quản lý người dùng**: Quản lý tài khoản và phân quyền (`ADMIN`, `STAFF`, `CUSTOMER`).
 - **Quản lý Voucher**: Tạo và quản lý mã giảm giá theo phần trăm (%) hoặc số tiền cố định.
+- 📦 **Quản lý Kho & SPCT (Sản Phẩm Chi Tiết)**: Quản lý quy cách chi tiết, đơn vị tính, số lượng tồn kho, định mức tồn tối thiểu, cảnh báo sắp hết hàng.
+- 🚚 **Quản lý Nhập Hàng (Đơn Nhập & CT Đơn Nhập)**: Lập phiếu nhập kho từ nhà cung cấp, chi tiết các mặt hàng nhập với số lượng & đơn giá; duyệt nhập kho tự động cộng dồn tồn kho SPCT.
+- ⚖️ **Định Lượng Món Ăn (TPSP - Thành Phần Sản Phẩm)**: Thiết lập công thức chế biến (1 suất món ăn tiêu hao bao nhiêu nguyên liệu trong kho); hệ thống tự động trừ kho nguyên liệu khi bếp chế biến đơn.
+
+---
+
+## 📊 Sơ Đồ Thực Thể - Liên Kết (ERD Chuẩn)
+
+Hệ thống được thiết kế khớp 100% theo sơ đồ ERD đề tài Quản Lý Nhà Hàng:
+
+| Ký hiệu ERD | Tên Bảng (Database) | Ý nghĩa nghiệp vụ |
+| :--- | :--- | :--- |
+| **TK** | `users` | Tài khoản hệ thống (Admin, Nhân viên, Khách hàng) |
+| **Bàn** | `restaurant_tables` | Bàn ăn, sức chứa, trạng thái bàn, mã QR |
+| **Loại món** | `categories` | Phân loại / Danh mục món ăn |
+| **SP** | `menu_items` | Sản phẩm / Món ăn & Đồ uống trên thực đơn |
+| **SPCT** | `product_details` | Sản phẩm chi tiết / Biến thể & Quản lý tồn kho |
+| **TPSP** | `product_recipes` | Thành phần sản phẩm / Định lượng công thức tiêu hao |
+| **Đơn** | `orders` | Đơn hàng bán ra (gắn với Khách hàng, Bàn, Nhân viên) |
+| **CT ĐƠN** | `order_items` | Chi tiết các món ăn trong từng đơn hàng bán |
+| **ĐNP** | `purchase_orders` | Đơn nhập hàng / Phiếu nhập kho từ nhà cung cấp |
+| **CT ĐN** | `purchase_order_items` | Chi tiết các mặt hàng SPCT trong từng đợt nhập kho |
 
 ---
 

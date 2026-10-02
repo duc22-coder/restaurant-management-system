@@ -9,6 +9,12 @@ Thư mục này chứa **biểu đồ ca sử dụng (Use Case)** và **biểu �
 
 ```
 docs/diagrams/
+├── Bieu-do-thiet-ke.docx              # 📄 File Word: đặc tả ca sử dụng + toàn bộ biểu đồ (17 hình)
+├── Bieu-do-thiet-ke.pdf               # 📄 Bản PDF tổng hợp (1 biểu đồ / trang A4)
+├── index.html                         # 🌐 Trang xem toàn bộ biểu đồ trên trình duyệt
+├── render.sh                          # Script kết xuất ảnh từ file .puml
+├── README.md                          # Quy ước vẽ chuẩn & hướng dẫn sử dụng
+│
 ├── use-case/                          # Biểu đồ ca sử dụng (.puml + .png)
 │   ├── 00-use-case-tong-quan.puml     # Tổng quan các nhóm chức năng (mức module)
 │   ├── 01-dat-mon-tai-ban.puml        # Nhóm: đặt món tại bàn
@@ -33,6 +39,21 @@ docs/diagrams/
 
 > **Nguyên tắc:** mỗi biểu đồ ca sử dụng đều có **đúng một biểu đồ tuần tự** cùng số thứ tự mô tả
 > luồng thông điệp chi tiết của ca sử dụng đó.
+
+### 📄 File Word `Bieu-do-thiet-ke.docx` gồm những gì?
+
+| Phần | Nội dung |
+| :--- | :--- |
+| **Trang bìa** | Chừa chỗ trống để điền trường, khoa, sinh viên, lớp, GVHD |
+| **Mục lục nội dung** | Danh mục các phần và 8 ca sử dụng |
+| **Phần 1** | Biểu đồ ca sử dụng tổng quan (**Hình 1**) + Bảng đối chiếu UC ↔ Sequence |
+| **Phần 2** | 8 ca sử dụng, mỗi ca gồm: <br>• Bảng đặc tả (tác nhân, mục đích, tiền điều kiện, luồng chính, luồng phụ, hậu điều kiện, API) <br>• Biểu đồ ca sử dụng <br>• Biểu đồ tuần tự tương ứng |
+| **Phụ lục** | Quy ước vẽ biểu đồ ca sử dụng, biểu đồ tuần tự và cách kết xuất lại ảnh |
+
+- Font chuẩn báo cáo: **Times New Roman 13**, giãn dòng 1.3, khổ **A4**, lề 2.5 / 2.0 / 2.0 / 2.0 cm.
+- Toàn bộ **17 hình** đã được chèn sẵn với tỉ lệ vừa khổ giấy, **9 bảng** ở dạng Table Grid.
+- Muốn ghép vào báo cáo chính: mở `lan3.docx` → copy từng mục từ file này dán sang
+  (hoặc dùng *Insert → Object → Text from File* để chèn toàn bộ nội dung).
 
 ---
 

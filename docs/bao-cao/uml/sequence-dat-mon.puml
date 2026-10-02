@@ -1,0 +1,34 @@
+@startuml
+!include _theme.puml
+hide footbox
+skinparam maxMessageSize 260
+autonumber
+actor "Khách hàng" as KH
+participant "ui :\nCustomerMenuPage" as UI <<boundary>>
+participant "api :\nCustomerOrderController" as API <<control>>
+participant "orders :\nOrderService" as Service <<control>>
+database "db :\nMySQL" as DB
+
+KH -> UI : Xác nhận giỏ hàng\nvà hình thức đặt
+UI -> API : POST /api/customer/\norders
+activate API
+API -> Service : createCustomerOrder(request, customerId)
+activate Service
+Service -> DB : Kiểm tra bàn nếu DINE_IN;\nđọc món và giá qua JPA
+activate DB
+DB --> Service : Bàn, món và tình trạng bán
+deactivate DB
+alt thiếu bàn / thiếu địa chỉ / món không còn bán
+  Service --> API : Lỗi xử lý; rollback transaction
+  API --> UI : Phản hồi lỗi
+else thông tin hợp lệ và món còn bán
+  Service -> DB : Lưu Order + OrderItem (PENDING);\ntính tổng tiền; cập nhật bàn nếu cần
+  activate DB
+  DB --> Service : Ghi dữ liệu thành công
+  deactivate DB
+  Service --> API : OrderResponse (mã đơn, tổng tiền)
+  API --> UI : 201 Created
+end
+deactivate Service
+deactivate API
+@enduml

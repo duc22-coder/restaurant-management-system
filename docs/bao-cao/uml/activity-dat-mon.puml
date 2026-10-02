@@ -1,0 +1,23 @@
+@startuml
+!include _theme.puml
+skinparam roundcorner 20
+|Khách hàng|
+start
+:Xem thực đơn,\nthêm món vào giỏ;
+repeat
+  :Chọn loại đơn; nhập bàn,\nSĐT / địa chỉ theo hình thức;
+  :Xác nhận đặt món;
+  |Hệ thống|
+  :Kiểm tra thông tin, bàn\nvà món còn bán;
+  backward:Báo lỗi; giữ giỏ hàng;\nrollback transaction lỗi;
+repeat while (Dữ liệu chưa hợp lệ?) is ([có]) not ([không])
+:Lưu Order + OrderItem\n(PENDING), tính tổng tiền;
+if (Có bàn đang AVAILABLE?) then ([có])
+  :Đặt bàn = OCCUPIED;
+else ([không])
+endif
+:Commit transaction;
+|Khách hàng|
+:Nhận mã đơn,\ntra cứu tiến độ;
+stop
+@enduml

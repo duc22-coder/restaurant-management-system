@@ -1,0 +1,36 @@
+@startuml
+!include _theme.puml
+left to right direction
+actor "Khách hàng" as KH
+actor "Dịch vụ VietQR" as QR <<external>>
+rectangle "HỆ THỐNG QUẢN LÝ NHÀ HÀNG — KHÁCH HÀNG" {
+  usecase "Đăng ký tài khoản" as Register
+  usecase "Đăng nhập" as Login
+  usecase "Cập nhật hồ sơ" as Profile
+  usecase "Xem thực đơn" as Menu
+  usecase "Tìm kiếm, lọc món" as Search
+  usecase "Quản lý giỏ hàng" as Cart
+  usecase "Đặt món" as Order
+  usecase "Tra cứu đơn hàng" as Track
+  usecase "Xem lịch sử đơn" as History
+  usecase "Yêu cầu tính tiền" as Request
+  usecase "Xem mã QR\nchuyển khoản" as ShowQR
+}
+KH -- Register
+KH -- Login
+KH -- Profile
+KH -- Menu
+KH -- Cart
+KH -- Order
+KH -- Track
+KH -- History
+KH -- Request
+KH -- ShowQR
+QR -left- ShowQR
+Search .left.> Menu : <<extend>>\n[tìm kiếm hoặc lọc]
+
+note right of Profile
+  Hồ sơ và lịch sử đơn:
+  đã đăng nhập.
+end note
+@enduml

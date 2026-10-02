@@ -1,0 +1,46 @@
+@startuml
+!include _theme.puml
+hide empty methods
+hide circle
+class User <<dùng lại>> {
+  - id : Long
+  - username : String
+}
+class MenuItem <<dùng lại>> {
+  - id : Long
+  - name : String
+}
+class ProductDetail {
+  - id : Long
+  - sku : String
+  - variantName : String
+  - unit : String
+  - stockQuantity : Double
+  - minStockAlert : Double
+  - status : ProductDetailStatus
+}
+class ProductRecipe {
+  - id : Long
+  - quantity : Double
+  - unit : String
+}
+class PurchaseOrder {
+  - id : Long
+  - code : String
+  - supplierName : String
+  - totalAmount : BigDecimal
+  - status : PurchaseOrderStatus
+}
+class PurchaseOrderItem {
+  - id : Long
+  - quantity : Double
+  - unitPrice : BigDecimal
+  - totalPrice : BigDecimal
+}
+MenuItem "1" *-- "0..*" ProductDetail : quy cách kho
+MenuItem "1" *-- "0..*" ProductRecipe : công thức
+ProductDetail "1" -- "0..*" ProductRecipe : nguyên liệu
+User "1" -- "0..*" PurchaseOrder : người lập
+PurchaseOrder "1" *-- "1..*" PurchaseOrderItem : chi tiết nhập
+ProductDetail "1" -- "0..*" PurchaseOrderItem : nguyên liệu nhập
+@enduml

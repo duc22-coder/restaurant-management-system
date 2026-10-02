@@ -1,0 +1,67 @@
+' Quy ước trình bày chung cho PlantUML + Graphviz.
+skinparam defaultFontName DejaVu Sans
+skinparam defaultFontSize 15
+skinparam dpi 180
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #222222
+skinparam ArrowThickness 1
+skinparam nodesep 32
+skinparam ranksep 35
+skinparam packageStyle rectangle
+skinparam actorStyle stickman
+skinparam classAttributeIconSize 0
+skinparam componentStyle uml2
+skinparam usecase {
+  BackgroundColor white
+  BorderColor #222222
+  FontColor #111111
+}
+skinparam class {
+  BackgroundColor white
+  BorderColor #222222
+  HeaderBackgroundColor #F1F3F5
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor #222222
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor #222222
+}
+skinparam component {
+  BackgroundColor white
+  BorderColor #222222
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor #222222
+}
+skinparam note {
+  BackgroundColor #F8F8F8
+  BorderColor #666666
+  FontSize 13
+}
+skinparam sequence {
+  ParticipantBackgroundColor #F1F3F5
+  ParticipantBorderColor #222222
+  LifeLineBorderColor #555555
+  LifeLineBackgroundColor white
+  GroupBackgroundColor white
+  GroupBorderColor #444444
+  BoxBackgroundColor white
+  MessageAlign center
+}
+skinparam activity {
+  BackgroundColor white
+  BorderColor #222222
+  DiamondBackgroundColor white
+  DiamondBorderColor #222222
+  StartColor #222222
+  EndColor #222222
+}
+
+skinparam actorBackgroundColor white
+skinparam sequenceActorBackgroundColor white

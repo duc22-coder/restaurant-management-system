@@ -1,0 +1,24 @@
+@startuml
+!include _theme.puml
+top to bottom direction
+component "Giao diện React SPA" as UI
+() "REST /api" as REST
+package "Spring Boot Backend" {
+  component "API REST\n(Spring MVC + Security JWT)" as API
+  component "Nghiệp vụ\n(Services)" as Service
+  component "Truy cập dữ liệu\n(Spring Data JPA)" as Data
+}
+component "Lưu trữ dữ liệu\n(MySQL 8.0)" as DB <<database>>
+component "Dịch vụ VietQR\n(img.vietqr.io)" as QR <<external>>
+UI ..> REST : sử dụng HTTP/JSON
+REST -- API : cung cấp
+API ..> Service : sử dụng
+Service ..> Data : sử dụng
+Data ..> DB : JDBC
+UI ..> QR : HTTPS: tải ảnh QR
+note bottom of API
+  Backend chỉ tạo URL VietQR.
+  Không có webhook ngân hàng
+  tự xác nhận đã nhận tiền.
+end note
+@enduml

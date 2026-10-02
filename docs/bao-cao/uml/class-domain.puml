@@ -1,0 +1,67 @@
+@startuml
+!include _theme.puml
+hide empty methods
+hide circle
+class Category {
+  - id : Long
+  - name : String
+  - status : CategoryStatus
+}
+class MenuItem {
+  - id : Long
+  - name : String
+  - price : BigDecimal
+  - status : MenuItemStatus
+}
+class OrderItem {
+  - id : Long
+  - quantity : Integer
+  - price : BigDecimal
+  - status : OrderItemStatus
+}
+class Order {
+  - id : Long
+  - orderCode : String
+  - orderType : OrderType
+  - status : OrderStatus
+  - totalAmount : BigDecimal
+  - stockDeducted : Boolean
+}
+class User {
+  - id : Long
+  - username : String
+  - role : Role
+  - status : UserStatus
+}
+class RestaurantTable {
+  - id : Long
+  - tableNumber : String
+  - capacity : Integer
+  - status : TableStatus
+}
+class Payment {
+  - id : Long
+  - paymentMethod : PaymentMethod
+  - amount : BigDecimal
+  - discountAmount : BigDecimal
+  - voucherCode : String
+  - status : PaymentStatus
+}
+class Voucher {
+  - id : Long
+  - code : String
+  - discountType : DiscountType
+  - discountValue : BigDecimal
+  - usageLimit : Integer
+  - usedCount : Integer
+  - active : Boolean
+}
+Category "1" -- "0..*" MenuItem : phân loại
+MenuItem "1" -- "0..*" OrderItem : món được gọi
+Order "1" *-- "1..*" OrderItem : chi tiết
+User "0..1" -- "0..*" Order : customer
+User "0..1" -- "0..*" Order : staff
+RestaurantTable "0..1" -- "0..*" Order : bàn phục vụ
+Order "1" -- "0..1" Payment : giao dịch
+Payment ..> Voucher : tra cứu theo voucherCode\n(không có khóa ngoại)
+@enduml

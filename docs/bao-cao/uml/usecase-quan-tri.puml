@@ -1,0 +1,29 @@
+@startuml
+!include _theme.puml
+left to right direction
+actor "Quản trị viên" as AD
+rectangle "HỆ THỐNG QUẢN LÝ NHÀ HÀNG — QUẢN TRỊ" {
+  usecase "Đăng nhập" as Login
+  usecase "Quản lý danh mục món" as Categories
+  usecase "Quản lý món ăn" as Menu
+  usecase "Quản lý bàn ăn" as Tables
+  usecase "Quản lý tài khoản" as Users
+  usecase "Quản lý mã giảm giá" as Vouchers
+  usecase "Quản lý đơn hàng" as Orders
+  usecase "Quản lý nguyên liệu, tồn kho" as Inventory
+  usecase "Quản lý công thức món" as Recipes
+  usecase "Quản lý phiếu nhập kho" as Purchases
+  usecase "Xem thống kê, báo cáo" as Report
+}
+AD -- Login
+AD -- Categories
+AD -- Menu
+AD -- Tables
+AD -- Users
+AD -- Vouchers
+AD -- Orders
+AD -- Inventory
+AD -- Recipes
+AD -- Purchases
+AD -- Report
+@enduml

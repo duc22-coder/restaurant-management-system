@@ -1,0 +1,36 @@
+@startuml
+!include _theme.puml
+hide footbox
+skinparam maxMessageSize 260
+autonumber
+actor "Người dùng" as User
+participant "ui :\nLoginPage" as UI <<boundary>>
+participant "api :\nAuthController" as API <<control>>
+participant "auth :\nAuthService" as Auth <<control>>
+participant "security :\nAuthenticationManager" as Security
+participant "jwt :\nJwtTokenProvider" as JWT
+
+User -> UI : Nhập thông tin\nđăng nhập
+UI -> API : POST /api/auth/login
+activate API
+API -> Auth : login(request)
+activate Auth
+Auth -> Security : authenticate(credentials)
+activate Security
+Security --> Auth : Authentication hoặc lỗi xác thực
+deactivate Security
+alt xác thực thất bại
+  Auth --> API : Lỗi xác thực
+  API --> UI : Phản hồi lỗi
+else xác thực thành công
+  Auth -> JWT : generateToken(auth)
+  activate JWT
+  JWT --> Auth : JWT
+  deactivate JWT
+  Auth -> Auth : Đọc tài khoản qua JPA;\nlập AuthResponse
+  Auth --> API : AuthResponse (JWT, vai trò)
+  API --> UI : 200 OK
+end
+deactivate Auth
+deactivate API
+@enduml

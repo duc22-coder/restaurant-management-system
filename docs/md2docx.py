@@ -1,335 +1,333 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Dựng file .docx chuẩn (OOXML) từ Markdown của báo cáo, HỖ TRỢ NHÚNG ẢNH PNG.
-Chỉ dùng thư viện chuẩn: re, os, struct, zipfile. Không cần mạng / pandoc / python-docx."""
-import re, zipfile, os, struct
+"""Dựng DOCX từ nguồn báo cáo; hỗ trợ bảng, ảnh, ngắt trang và trang ngang.
 
-SRC = os.path.join(os.path.dirname(__file__), "BAO_CAO_CHUONG3.md")
-OUT = os.path.join(os.path.dirname(__file__), "BAO_CAO_CHUONG3.docx")
-BASE = os.path.dirname(SRC)
+Cài phụ thuộc: python -m pip install -r docs/requirements.txt
+Chạy: python docs/md2docx.py
+Các nguồn ảnh thiếu/hỏng làm quá trình dựng thất bại, không ghi đè DOCX cũ.
+"""
+from __future__ import annotations
 
-# ---------- XML helpers ----------
-def esc(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+import argparse
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+import re
+import struct
+import tempfile
 
+from docx import Document
+from docx.enum.section import WD_ORIENT, WD_SECTION_START
+from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Mm, Pt, RGBColor
+from docx.text.paragraph import Paragraph
+
+BASE = Path(__file__).resolve().parent
+SRC = BASE / "BAO_CAO_CHUONG3.md"
+OUT = BASE / "BAO_CAO_CHUONG3.docx"
 INLINE_RE = re.compile(r"(\*\*.+?\*\*|`[^`]+`|\*[^*\n]+?\*)")
-def parse_inline(text):
-    out = []
+IMG_RE = re.compile(r"^!\[(.*?)\]\((.+?)\)\s*$")
+TABLE_SEPARATOR_RE = re.compile(r"^:?-{3,}:?$")
+
+
+def parse_inline(text: str) -> list[tuple[str, str]]:
+    result = []
     for part in INLINE_RE.split(text):
         if not part:
             continue
         if part.startswith("**") and part.endswith("**") and len(part) > 4:
-            out.append(("b", part[2:-2]))
+            result.append(("b", part[2:-2]))
         elif part.startswith("`") and part.endswith("`") and len(part) > 2:
-            out.append(("code", part[1:-1]))
+            result.append(("code", part[1:-1]))
         elif part.startswith("*") and part.endswith("*") and len(part) > 2:
-            out.append(("i", part[1:-1]))
+            result.append(("i", part[1:-1]))
         else:
-            out.append(("n", part))
-    return out
+            result.append(("n", part))
+    return result
 
-def run_xml(kind, text):
-    if kind == "b":
-        rpr = "<w:b/><w:bCs/>"
-    elif kind == "i":
-        rpr = "<w:i/><w:iCs/>"
-    elif kind == "code":
-        rpr = ('<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>'
-               '<w:shd w:val="clear" w:color="auto" w:fill="F0F0F0"/>')
-    else:
-        rpr = ""
-    xml = ""
-    for i, seg in enumerate(text.split("<br>")):
-        if i > 0:
-            xml += "<w:r>%s<w:br/></w:r>" % rpr
-        if seg:
-            xml += '<w:r>%s<w:t xml:space="preserve">%s</w:t></w:r>' % (rpr, esc(seg))
-    return xml
 
-def inline_xml(text):
-    return "".join(run_xml(k, t) for k, t in parse_inline(text))
+def add_inline(paragraph, text: str) -> None:
+    for kind, value in parse_inline(text):
+        segments = re.split(r"<br\s*/?>", value)
+        for index, segment in enumerate(segments):
+            run = paragraph.add_run(segment)
+            if index:
+                # Line break must precede the next segment, inside a run.
+                br = OxmlElement("w:br")
+                run._r.insert(0 if run._r.rPr is None else 1, br)
+            if kind == "b":
+                run.bold = True
+            elif kind == "i":
+                run.italic = True
+            elif kind == "code":
+                run.font.name = "DejaVu Sans Mono"
+                run.font.size = Pt(10)
 
-def para(inner, style=None, extra=""):
-    ppr = ('<w:pStyle w:val="%s"/>' % style) if style else ""
-    ppr += extra
-    if ppr:
-        ppr = "<w:pPr>%s</w:pPr>" % ppr
-    return "<w:p>%s%s</w:p>" % (ppr, inner)
 
-SP_AFTER = '<w:spacing w:after="120" w:line="276" w:lineRule="auto"/>'
+def set_font(style, size: float, bold: bool = False) -> None:
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(size)
+    style.font.bold = bold
+    style.font.color.rgb = RGBColor(0, 0, 0)
+    rpr = style.element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    for key in ("ascii", "hAnsi", "eastAsia", "cs"):
+        rfonts.set(qn(f"w:{key}"), "Times New Roman")
+    language = OxmlElement("w:lang")
+    language.set(qn("w:val"), "vi-VN")
+    rpr.append(language)
 
-# ---------- image handling ----------
-EMU_IN = 914400
-EMU_PX = 9525            # 96 dpi
-MAX_W_IN = 6.4
-MAX_H_IN = 8.2
-IMAGES = []              # list of (filename, bytes)
-NEXT_RID = [3]           # rId1=styles, rId2=footer
-PIC_ID = [10]            # docPr/cNvPr id
 
-def png_size(data):
-    # PNG: 8-byte sig, 4 len, 4 'IHDR', then width(4), height(4) big-endian
-    w, h = struct.unpack(">II", data[16:24])
-    return w, h
+def configure_section(section, landscape: bool = False) -> None:
+    section.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+    section.page_width = Mm(297 if landscape else 210)
+    section.page_height = Mm(210 if landscape else 297)
+    section.left_margin = Mm(25)
+    section.right_margin = Mm(20)
+    section.top_margin = Mm(15 if landscape else 20)
+    section.bottom_margin = Mm(15 if landscape else 20)
+    section.header_distance = Mm(8)
+    section.footer_distance = Mm(8)
 
-def image_para(rel_path, alt=""):
-    path = os.path.normpath(os.path.join(BASE, rel_path))
-    if not os.path.exists(path):
-        return para(inline_xml("_[thiếu ảnh: %s]_" % rel_path),
-                    extra=SP_AFTER)
-    with open(path, "rb") as f:
-        data = f.read()
-    w, h = png_size(data)
-    rid = NEXT_RID[0]; NEXT_RID[0] += 1
-    fname = "image%d.png" % rid
-    IMAGES.append((fname, data))
-    pid = PIC_ID[0]; PIC_ID[0] += 1
-    scale = min(MAX_W_IN * EMU_IN / (w * EMU_PX), MAX_H_IN * EMU_IN / (h * EMU_PX), 1.0)
-    cx = int(w * EMU_PX * scale)
-    cy = int(h * EMU_PX * scale)
-    drawing = (
-        '<w:r><w:drawing>'
-        '<wp:inline distT="0" distB="0" distL="0" distR="0">'
-        '<wp:extent cx="%d" cy="%d"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
-        '<wp:docPr id="%d" name="Picture %d" descr="%s"/>'
-        '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'
-        '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
-        '<pic:pic><pic:nvPicPr><pic:cNvPr id="%d" name="%s"/><pic:cNvPicPr/></pic:nvPicPr>'
-        '<pic:blipFill><a:blip r:embed="rId%d"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
-        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="%d" cy="%d"/></a:xfrm>'
-        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
-        '</pic:pic></a:graphicData></a:graphic>'
-        '</wp:inline></w:drawing></w:r>'
-        % (cx, cy, pid, pid, esc(alt), pid, fname, rid, cx, cy))
-    return para(drawing, extra='<w:spacing w:before="120" w:after="60"/><w:jc w:val="center"/>')
 
-# ---------- table ----------
-def split_row(line):
-    line = line.strip()
-    if line.startswith("|"):
-        line = line[1:]
-    if line.endswith("|"):
-        line = line[:-1]
-    return [c.strip() for c in line.split("|")]
+def configure_document(document) -> None:
+    configure_section(document.sections[0])
+    styles = document.styles
+    set_font(styles["Normal"], 13)
+    normal = styles["Normal"].paragraph_format
+    normal.line_spacing = 1.25
+    normal.space_after = Pt(6)
+    normal.widow_control = True
+    for level, size in ((1, 16), (2, 14), (3, 13), (4, 13)):
+        style = styles[f"Heading {level}"]
+        set_font(style, size, True)
+        fmt = style.paragraph_format
+        fmt.keep_with_next = True
+        fmt.keep_together = True
+        fmt.line_spacing = 1.1
+        fmt.space_before = Pt(8 if level > 1 else 0)
+        fmt.space_after = Pt(6)
+        if level == 1:
+            fmt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    set_font(styles["Caption"], 11)
+    styles["Caption"].font.italic = True
+    caption = styles["Caption"].paragraph_format
+    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    caption.space_before = Pt(4)
+    caption.space_after = Pt(6)
+    caption.line_spacing = 1.0
+    caption.keep_together = True
+    caption.keep_with_next = False
+    table_style = styles.add_style("Report Table Text", WD_STYLE_TYPE.PARAGRAPH)
+    table_style.base_style = styles["Normal"]
+    set_font(table_style, 12)
+    table_style.paragraph_format.line_spacing = 1.1
+    table_style.paragraph_format.space_after = Pt(3)
+    table_style.paragraph_format.space_before = Pt(3)
+    table_style.paragraph_format.keep_together = True
 
-BORDERS = ('<w:tblBorders>'
-           '<w:top w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '<w:left w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '<w:right w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>'
-           '</w:tblBorders>')
+    footer = document.sections[0].footer.paragraphs[0]
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer.paragraph_format.space_after = Pt(0)
+    text = footer.add_run("Trang ")
+    text.font.size = Pt(10)
+    field = OxmlElement("w:fldSimple")
+    field.set(qn("w:instr"), "PAGE")
+    footer._p.append(field)
+    document.core_properties.title = "Chương 3 – Phân tích và thiết kế hệ thống quản lý nhà hàng"
+    document.core_properties.author = "Restaurant Management System"
+    document.core_properties.subject = "Mô hình UML và thiết kế hệ thống"
+    document.core_properties.modified = datetime.now(timezone.utc)
 
-def cell_xml(text, header=False, align="left"):
-    jc = '<w:jc w:val="%s"/>' % align
-    shd = '<w:shd w:val="clear" w:color="auto" w:fill="DCE6F1"/>' if header else ""
-    if header:
-        t = text.replace("**", "")
-        inner = '<w:r><w:b/><w:bCs/><w:t xml:space="preserve">%s</w:t></w:r>' % esc(t)
-    else:
-        inner = inline_xml(text)
-    ppr = ('<w:pPr>%s<w:spacing w:before="40" w:after="40" w:line="252" w:lineRule="auto"/>%s</w:pPr>'
-           % (shd, jc))
-    return '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/>%s<w:vAlign w:val="center"/></w:tcPr>%s</w:tc>' % (
-        shd, para(inner, extra=ppr))
 
-def align_of(sep):
-    sep = sep.strip()
-    if sep.startswith(":") and sep.endswith(":"):
-        return "center"
-    if sep.endswith(":"):
-        return "right"
-    return "left"
+def png_size(data: bytes) -> tuple[int, int]:
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+        raise ValueError("Ảnh không phải PNG hợp lệ")
+    width, height = struct.unpack(">II", data[16:24])
+    if not width or not height:
+        raise ValueError("Kích thước ảnh PNG phải lớn hơn 0")
+    return width, height
 
-def table_xml(rows):
-    header, aligns, body = rows[0], [align_of(c) for c in rows[1]], rows[2:]
-    xml = ('<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>%s'
-           '<w:tblLayout w:type="autofit"/>'
-           '<w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/>'
-           '<w:left w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tblCellMar>'
-           '</w:tblPr>' % BORDERS)
-    xml += '<w:tr><w:trPr><w:tblHeader/></w:trPr>%s</w:tr>' % "".join(
-        cell_xml(c, header=True, align=aligns[i] if i < len(aligns) else "left")
-        for i, c in enumerate(header))
-    for r in body:
-        xml += "<w:tr>%s</w:tr>" % "".join(
-            cell_xml(c, header=False, align=aligns[i] if i < len(aligns) else "left")
-            for i, c in enumerate(r))
-    xml += "</w:tbl>"
-    xml += para("", extra='<w:spacing w:after="120"/>')
-    return xml
 
-# ---------- code block ----------
-def code_xml(lines):
-    out = ""
-    for ln in lines:
-        inner = ('<w:r><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>'
-                 '<w:color w:val="1F1F1F"/><w:sz w:val="18"/>'
-                 '<w:t xml:space="preserve">%s</w:t></w:r>' % (esc(ln) if ln else ""))
-        out += para(inner, extra=('<w:shd w:val="clear" w:color="auto" w:fill="F5F5F5"/>'
-                                  '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>'
-                                  '<w:ind w:left="120"/>'))
-    out += para("", extra='<w:spacing w:after="120"/>')
-    return out
+def add_image(document, base: Path, rel_path: str, caption: str) -> None:
+    path = (base / rel_path).resolve()
+    width_px, height_px = png_size(path.read_bytes())
+    section = document.sections[-1]
+    max_width = section.page_width - section.left_margin - section.right_margin
+    max_height = Inches(5.5 if section.orientation == WD_ORIENT.LANDSCAPE else 7.6)
+    scale = min(max_width / width_px, max_height / height_px)
+    paragraph = document.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.line_spacing = 1.0
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.keep_with_next = bool(caption)
+    picture = paragraph.add_run().add_picture(str(path), width=int(width_px * scale),
+                                              height=int(height_px * scale))
+    picture._inline.docPr.set("descr", caption)
+    if caption:
+        document.add_paragraph(caption, style="Caption")
 
-def quote_xml(text):
-    extra = ('<w:pBdr><w:left w:val="single" w:sz="18" w:space="8" w:color="9DC3E6"/></w:pBdr>'
-             '<w:spacing w:before="80" w:after="120" w:line="276" w:lineRule="auto"/><w:ind w:left="220"/>')
-    return para(inline_xml(text), extra=extra)
 
-# ---------- parse markdown ----------
-def build_body(md):
-    lines = md.split("\n")
-    body, i, n = [], 0, len(lines)
-    IMG_RE = re.compile(r"^!\[(.*?)\]\((.+?)\)\s*$")
-    while i < n:
-        line = lines[i].rstrip("\n")
-        s = line.strip()
+def split_row(line: str) -> list[str]:
+    text = line.strip().strip("|")
+    return [cell.strip() for cell in text.split("|")]
 
-        m = IMG_RE.match(s)
-        if m:
-            body.append(image_para(m.group(2), m.group(1)))
-            i += 1
+
+def is_table_separator(line: str) -> bool:
+    return all(TABLE_SEPARATOR_RE.fullmatch(cell) for cell in split_row(line))
+
+
+def align_of(separator: str):
+    if separator.startswith(":") and separator.endswith(":"):
+        return WD_ALIGN_PARAGRAPH.CENTER
+    if separator.endswith(":"):
+        return WD_ALIGN_PARAGRAPH.RIGHT
+    return WD_ALIGN_PARAGRAPH.LEFT
+
+
+def add_table(document, headers: list[str], separators: list[str], rows: list[list[str]]) -> None:
+    if len(headers) != len(separators) or any(len(row) != len(headers) for row in rows):
+        raise ValueError("Số ô của bảng Markdown không khớp số cột")
+    table = document.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    table.autofit = False
+    section = document.sections[-1]
+    available = section.page_width - section.left_margin - section.right_margin
+    ratios = {2: (0.21, 0.79), 3: (0.22, 0.47, 0.31)}.get(len(headers))
+    ratios = ratios or tuple(1 / len(headers) for _ in headers)
+    widths = [int(available * ratio) for ratio in ratios]
+    for column, width in zip(table.columns, widths):
+        column.width = width
+    repeat = OxmlElement("w:tblHeader")
+    table.rows[0]._tr.get_or_add_trPr().append(repeat)
+    for index, values in enumerate([headers, *rows]):
+        row = table.rows[0] if index == 0 else table.add_row()
+        row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
+        for column, (cell, text) in enumerate(zip(row.cells, values)):
+            cell.width = widths[column]
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            paragraph = cell.paragraphs[0]
+            paragraph.style = document.styles["Report Table Text"]
+            paragraph.alignment = align_of(separators[column])
+            add_inline(paragraph, text)
+            if index == 0:
+                shade = OxmlElement("w:shd")
+                shade.set(qn("w:fill"), "EFEFEF")
+                cell._tc.get_or_add_tcPr().append(shade)
+                for run in paragraph.runs:
+                    run.bold = True
+    # A paragraph after a table is required for predictable Word pagination.
+    spacer = document.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(0)
+    spacer.paragraph_format.line_spacing = Pt(2)
+    spacer.add_run().font.size = Pt(2)
+
+
+def build_document(markdown: str, base: Path = BASE):
+    document = Document()
+    configure_document(document)
+    lines = markdown.splitlines()
+    index = 0
+    has_content = False
+    pending_break = False
+    pending_orientation = None
+    while index < len(lines):
+        text = lines[index].strip()
+        index += 1
+        if not text or re.fullmatch(r"-{3,}", text):
             continue
-
-        if s.startswith("```"):
-            lang = s[3:].strip()
-            i += 1
-            code = []
-            while i < n and not lines[i].strip().startswith("```"):
-                code.append(lines[i]); i += 1
-            i += 1
-            body.append(code_xml(code))
+        if text in ("<!-- portrait -->", "<!-- landscape -->"):
+            pending_orientation = text == "<!-- landscape -->"
+            pending_break = True
             continue
-
-        if s.startswith("|") and i + 1 < n and re.match(r"^\s*\|?[\s:|-]+\|?\s*$", lines[i + 1]) and "-" in lines[i + 1]:
-            rows = [split_row(line)]
-            i += 2
-            while i < n and lines[i].strip().startswith("|"):
-                rows.append(split_row(lines[i])); i += 1
-            body.append(table_xml(rows))
+        if text == "<!-- pagebreak -->":
+            pending_break = True
             continue
-
-        m = re.match(r"^(#{1,6})\s+(.*)$", s)
-        if m:
-            style = {1: "Heading1", 2: "Heading2", 3: "Heading3"}.get(len(m.group(1)), "Heading4")
-            body.append(para(inline_xml(m.group(2)), style=style))
-            i += 1
+        if text.startswith("<!--"):
             continue
+        # Apply consecutive directives together: no empty first/trailing page,
+        # and no double page break when an orientation change follows a break.
+        current = document.sections[-1].orientation == WD_ORIENT.LANDSCAPE
+        break_before = False
+        if pending_orientation is not None and pending_orientation != current:
+            section = (document.add_section(WD_SECTION_START.NEW_PAGE)
+                       if has_content else document.sections[0])
+            configure_section(section, pending_orientation)
+        elif pending_break and has_content:
+            break_before = True
+        pending_break = False
+        pending_orientation = None
+        # New content is inserted before the final body-level sectPr.
+        first_block = len(document.element.body) - 1
+        image = IMG_RE.fullmatch(text)
+        if image:
+            add_image(document, base, image.group(2), image.group(1))
+        elif (text.startswith("|") and index < len(lines)
+              and is_table_separator(lines[index])):
+            headers, separators = split_row(text), split_row(lines[index])
+            rows = []
+            index += 1
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                rows.append(split_row(lines[index]))
+                index += 1
+            add_table(document, headers, separators, rows)
+        elif text.startswith("```"):
+            while index < len(lines) and not lines[index].strip().startswith("```"):
+                paragraph = document.add_paragraph()
+                run = paragraph.add_run(lines[index])
+                run.font.name = "DejaVu Sans Mono"
+                run.font.size = Pt(10)
+                index += 1
+            index += 1
+        else:
+            heading = re.fullmatch(r"(#{1,4})\s+(.+)", text)
+            if heading:
+                paragraph = document.add_paragraph(style=f"Heading {len(heading.group(1))}")
+                add_inline(paragraph, heading.group(2))
+            elif text.startswith(">"):
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.left_indent = Mm(5)
+                add_inline(paragraph, text[1:].strip())
+            elif re.match(r"^[-*]\s+", text):
+                paragraph = document.add_paragraph(style="List Bullet")
+                add_inline(paragraph, text[2:])
+            else:
+                paragraph = document.add_paragraph()
+                add_inline(paragraph, text)
+        if break_before:
+            block = document.element.body[first_block]
+            if block.tag == qn("w:tbl"):
+                block = block.xpath(".//w:p")[0]
+            if block.tag == qn("w:p"):
+                # Break BEFORE content, not an empty paragraph that can itself
+                # overflow and produce a blank page at the end of a full page.
+                Paragraph(block, document).paragraph_format.page_break_before = True
+        has_content = True
+    return document
 
-        if re.match(r"^-{3,}$", s):
-            body.append(para("", extra='<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="BFBFBF"/></w:pBdr><w:spacing w:after="120"/>'))
-            i += 1
-            continue
 
-        if s.startswith(">"):
-            body.append(quote_xml(s[1:].strip())); i += 1; continue
+def convert(source: Path = SRC, output: Path = OUT) -> None:
+    source, output = Path(source), Path(output)
+    document = build_document(source.read_text(encoding="utf-8"), source.parent)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=output.parent, suffix=".docx", delete=False) as temporary:
+        temporary_name = temporary.name
+    try:
+        document.save(temporary_name)
+        os.replace(temporary_name, output)
+    finally:
+        if os.path.exists(temporary_name):
+            os.unlink(temporary_name)
+    print(f"Đã cập nhật {output} | {len(document.inline_shapes)} ảnh | {len(document.tables)} bảng")
 
-        m = re.match(r"^[-*]\s+(.*)$", s)
-        if m:
-            inner = '<w:r><w:t xml:space="preserve">•  </w:t></w:r>' + inline_xml(m.group(1))
-            body.append(para(inner, extra=SP_AFTER + '<w:ind w:left="420" w:hanging="240"/>')); i += 1; continue
-
-        m = re.match(r"^(\d+)\.\s+(.*)$", s)
-        if m:
-            inner = '<w:r><w:t xml:space="preserve">%s.  </w:t></w:r>' % m.group(1) + inline_xml(m.group(2))
-            body.append(para(inner, extra=SP_AFTER + '<w:ind w:left="460" w:hanging="300"/>')); i += 1; continue
-
-        if s == "":
-            i += 1; continue
-
-        body.append(para(inline_xml(s), extra=SP_AFTER)); i += 1
-    return "".join(body)
-
-# ---------- package parts ----------
-def content_types():
-    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-            '<Default Extension="xml" ContentType="application/xml"/>'
-            '<Default Extension="png" ContentType="image/png"/>'
-            '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-            '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
-            '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
-            '</Types>')
-
-RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
-        '</Relationships>')
-
-def doc_rels():
-    rels = ('<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>')
-    for idx, (fname, _) in enumerate(IMAGES):
-        rid = 3 + idx
-        rels += ('<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/%s"/>'
-                 % (rid, fname))
-    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>')
-
-FOOTER = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-          '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-          '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">Trang </w:t></w:r>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:t>1</w:t></w:r>'
-          '<w:r><w:rPr><w:color w:val="808080"/><w:sz w:val="18"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>'
-          '</w:p></w:ftr>')
-
-def styles_xml():
-    base = ('<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/>'
-            '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/>'
-            '<w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>')
-    def heading(sid, name, sz, color, before, after):
-        return ('<w:style w:type="paragraph" w:styleId="%s"><w:name w:val="%s"/>'
-                '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
-                '<w:pPr><w:keepNext/><w:spacing w:before="%d" w:after="%d" w:line="276" w:lineRule="auto"/><w:outlineLvl w:val="%d"/></w:pPr>'
-                '<w:rPr><w:b/><w:bCs/><w:color w:val="%s"/><w:sz w:val="%d"/><w:szCs w:val="%d"/></w:rPr></w:style>'
-                % (sid, name, before, after, int(sid[-1]) - 1, color, sz, sz))
-    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-            '<w:docDefaults><w:rPrDefault><w:rPr>'
-            '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/>'
-            '<w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:rPrDefault>'
-            '<w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
-            '</w:docDefaults>' + base
-            + heading("Heading1", "heading 1", 36, "1F4E79", 240, 120)
-            + heading("Heading2", "heading 2", 30, "2E74B5", 220, 100)
-            + heading("Heading3", "heading 3", 26, "2E74B5", 180, 80)
-            + heading("Heading4", "heading 4", 24, "404040", 160, 60)
-            + '</w:styles>')
-
-SECTPR = ('<w:sectPr><w:footerReference w:type="default" r:id="rId2"/>'
-          '<w:pgSz w:w="11906" w:h="16838"/>'
-          '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" '
-          'w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>')
-
-def main():
-    with open(SRC, encoding="utf-8") as f:
-        md = f.read()
-    body = build_body(md)
-    document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<w:document '
-                'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
-                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
-                'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
-                'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
-                'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
-                '<w:body>' + body + SECTPR + '</w:body></w:document>')
-    with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("[Content_Types].xml", content_types())
-        z.writestr("_rels/.rels", RELS)
-        z.writestr("word/_rels/document.xml.rels", doc_rels())
-        z.writestr("word/document.xml", document)
-        z.writestr("word/styles.xml", styles_xml())
-        z.writestr("word/footer1.xml", FOOTER)
-        for fname, data in IMAGES:
-            z.writestr("word/media/" + fname, data)
-    print("WROTE", OUT, os.path.getsize(OUT), "bytes | images:", len(IMAGES), "| tables:", body.count("<w:tbl>"))
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, default=SRC)
+    parser.add_argument("--output", type=Path, default=OUT)
+    arguments = parser.parse_args()
+    convert(arguments.source, arguments.output)

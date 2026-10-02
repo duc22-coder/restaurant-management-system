@@ -1,275 +1,184 @@
-# PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG QUẢN LÝ NHÀ HÀNG
+# CHƯƠNG 3. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG QUẢN LÝ NHÀ HÀNG
 
-> **Đề tài:** Restaurant Management System · **Công nghệ:** Java 17, Spring Boot 3.3 (Security + JWT, Spring Data JPA), MySQL 8.0, React 18 + Vite.
-> **Phương pháp:** Mô hình hóa UML, kiến trúc Client–Server/REST, kiến trúc phân tầng (Controller – Service – Repository – Entity).
-> Các sơ đồ dưới đây (Hình 2.1 – 2.13) được sinh tự động cho hệ thống và bám sát mã nguồn thực tế.
+Chương này mô hình hóa chức năng và thiết kế của Restaurant Management System bằng UML. Phạm vi gồm đặt món, chế biến, thu ngân, quản trị thực đơn và quản lý kho. Hệ thống sử dụng React, Spring Boot và MySQL; các luồng dưới đây phản ánh nghiệp vụ trong mã nguồn hiện tại.
 
----
+## 3.1. Tác nhân và phạm vi hệ thống
 
-## 1. Xác định tác nhân (Actors)
-
-| Ký hiệu | Tác nhân | Mô tả | Quyền truy cập chính |
-| :---: | :--- | :--- | :--- |
-| KH | **Khách hàng** (Customer) | Người dùng cuối đặt món (ăn tại bàn / đến lấy / giao hàng) | Xem thực đơn, giỏ hàng, đặt món, thanh toán VietQR, tra cứu đơn, hồ sơ |
-| NV | **Nhân viên** (Staff) | Phục vụ, pha chế/bếp, thu ngân | Sơ đồ bàn, xử lý đơn bếp, thu ngân, nhập kho |
-| AD | **Quản trị viên** (Admin) | Người quản trị hệ thống | Toàn quyền: dashboard, CRUD toàn bộ danh mục, thực đơn, bàn, người dùng, voucher, kho, nhập hàng, công thức |
-| — | Hệ thống ngân hàng (VietQR) | Dịch vụ bên ngoài sinh mã QR chuyển khoản | Sinh mã QR thanh toán động |
-
-> Admin thừa hưởng toàn bộ quyền của Nhân viên; Khách hàng độc lập. Tác nhân "Hệ thống ngân hàng" là hệ thống ngoài (external), chỉ tương tác khi thanh toán chuyển khoản.
-
----
-
-## 2. Sơ đồ Use Case (Use Case Diagram)
-
-### 2.1. Biểu đồ usecase tổng quát
-
-**Hình 2.1 – Biểu đồ usecase tổng quát của hệ thống**
-
-![Hình 2.1 – Biểu đồ usecase tổng quát](bao-cao/images/usecase-tong-quat.png)
-
-**Mô tả Hình 2.1:** Hệ thống gồm 4 tác nhân: Khách hàng, Nhân viên phục vụ, Quản trị viên và Hệ thống ngân hàng (VietQR). Khách hàng xem thực đơn, quản lý giỏ hàng, đặt món (đa hình thức), theo dõi tiến độ, gửi yêu cầu tính tiền, thanh toán qua VietQR và xem lịch sử đơn. Nhân viên quản lý đơn món & quy trình bếp, trạng thái bàn ăn và xử lý thanh toán. Quản trị viên quản lý danh mục & món ăn, bàn ăn, người dùng, khuyến mãi, đơn hàng và xem thống kê – báo cáo. Hai use case "Đăng nhập"/"Đăng ký" dùng chung cho nhiều tác nhân.
-
-### 2.2. Biểu đồ usecase phân hệ Khách hàng
-
-**Hình 2.2 – Biểu đồ usecase phân hệ Khách hàng**
-
-![Hình 2.2 – Biểu đồ usecase phân hệ Khách hàng](bao-cao/images/usecase-khach-hang.png)
-
-**Mô tả Hình 2.2:** Khách hàng có thể đăng ký/đăng nhập, cập nhật hồ sơ, xem thực đơn (có «extend» tìm kiếm & lọc danh mục), quản lý giỏ hàng, xem lịch sử đơn. Nhóm đặt món gồm: đặt ăn tại bàn («include» nhận diện bàn qua mã QR), đặt mang về, đặt giao tận nơi, theo dõi tiến độ, gửi yêu cầu tính tiền («include» xem mã QR thanh toán). Dịch vụ VietQR tham gia khi khách xem mã QR thanh toán.
-
-### 2.3. Biểu đồ usecase phân hệ Nhân viên phục vụ
-
-**Hình 2.3 – Biểu đồ usecase phân hệ Nhân viên phục vụ**
-
-![Hình 2.3 – Biểu đồ usecase phân hệ Nhân viên phục vụ](bao-cao/images/usecase-nhan-vien.png)
-
-**Mô tả Hình 2.3:** Nhân viên đăng nhập, xem danh sách đơn đang xử lý, cập nhật trạng thái đơn và trạng thái từng món (bếp), quản lý trạng thái bàn ăn, xem trước hóa đơn. Nhóm thanh toán: "Xử lý thanh toán" «include» "Xác thực mã giảm giá", "Xác nhận thanh toán & giải phóng bàn", "Xem trước hóa đơn"; "Sinh mã QR chuyển khoản" «extend» khi khách chọn chuyển khoản (qua dịch vụ VietQR).
-
-### 2.4. Biểu đồ usecase phân hệ Quản trị viên
-
-**Hình 2.4 – Biểu đồ usecase phân hệ Quản trị viên**
-
-![Hình 2.4 – Biểu đồ usecase phân hệ Quản trị viên](bao-cao/images/usecase-quan-tri.png)
-
-**Mô tả Hình 2.4:** Quản trị viên đăng nhập, quản lý danh mục món ăn, món ăn, bàn ăn, người dùng, khuyến mãi (voucher), đơn hàng và xem thống kê – báo cáo doanh thu. Use case "Khóa/mở tài khoản" «extend» từ "Quản lý người dùng".
-
----
-
-## 3. Đặc tả Use Case (Use Case Specification)
-
-### Đặc tả UC-KH – Đặt món (tạo đơn hàng)
-
-| Thuộc tính | Nội dung |
-| :--- | :--- |
-| **Tên UC** | Đặt món (tạo đơn hàng) |
-| **Tác nhân** | Khách hàng |
-| **Mô tả** | Chọn món, số lượng, ghi chú, hình thức (ăn tại bàn / đến lấy / giao hàng), áp dụng voucher và tạo đơn |
-| **Tiền điều kiện** | Đã truy cập thực đơn (qua QR bàn `/menu?tableId=..` hoặc trực tiếp) |
-| **Hậu điều kiện** | Đơn tạo ở trạng thái `PENDING`, tính `total_amount`; đơn ăn tại bàn → bàn chuyển `OCCUPIED` |
-| **Luồng chính** | 1. Xem thực đơn, chọn món.<br>2. Điều chỉnh số lượng, ghi chú.<br>3. Chọn hình thức đặt.<br>4. Nếu DELIVERY → nhập địa chỉ & SĐT; PICKUP → nhập SĐT.<br>5. (Tùy chọn) Nhập voucher → hệ thống kiểm tra & tính giảm.<br>6. Xác nhận đặt món.<br>7. Hệ thống sinh `orderCode`, lưu `orders` + `order_items` (mỗi món `PENDING`), tính tổng tiền.<br>8. Trả về mã đơn & thông tin thanh toán. |
-| **Luồng thay thế** | **3a.** Ăn tại bàn → chọn bàn trống/quét QR. **5a.** Voucher không hợp lệ/hết hạn → báo lỗi, giữ nguyên đơn. **7a.** Món vừa `UNAVAILABLE` → thông báo, yêu cầu bỏ chọn. |
-
-### Đặc tả UC-KH – Thanh toán VietQR
-
-| Thuộc tính | Nội dung |
-| :--- | :--- |
-| **Tên UC** | Thanh toán VietQR |
-| **Tác nhân** | Khách hàng |
-| **Mô tả** | Sinh mã QR thanh toán động theo đúng mã đơn và số tiền |
-| **Tiền điều kiện** | Đơn tồn tại (`PENDING`/`PROCESSING`), chưa thanh toán |
-| **Hậu điều kiện** | Trả về mã VietQR; khi nhân viên xác nhận → `Payment.status = COMPLETED` |
-| **Luồng chính** | 1. Mở trang thanh toán của đơn. 2. Hệ thống lấy `total_amount`, `orderCode`. 3. Sinh URL/ảnh VietQR động (ngân hàng – số TK – số tiền – nội dung = orderCode). 4. Khách quét & chuyển khoản; chờ nhân viên xác nhận. |
-| **Luồng thay thế** | **2a.** Đơn đã thanh toán → thông báo "Đã thanh toán". |
-
-### Đặc tả UC-KH – Tra cứu đơn hàng
-
-| Thuộc tính | Nội dung |
-| :--- | :--- |
-| **Tên UC** | Tra cứu đơn hàng |
-| **Tác nhân** | Khách hàng |
-| **Mô tả** | Xem trạng thái đơn theo thời gian thực (theo mã đơn, theo bàn, hoặc "đơn của tôi") |
-| **Luồng chính** | 1. Nhập mã đơn / mở link bàn / mở "Đơn của tôi". 2. Hệ thống truy vấn đơn + chi tiết. 3. Hiển thị trạng thái tổng và từng món (`PENDING→PREPARING→READY→SERVED`). |
-
-### Đặc tả UC-NV – Xử lý đơn bếp
-
-| Thuộc tính | Nội dung |
-| :--- | :--- |
-| **Tên UC** | Xử lý đơn bếp |
-| **Tác nhân** | Nhân viên (pha chế/bếp) |
-| **Mô tả** | Chuyển trạng thái từng món và cả đơn theo luồng chế biến |
-| **Hậu điều kiện** | Món chuyển `PENDING→PREPARING→READY→SERVED`; đơn có thể chuyển `COMPLETED` |
-| **Luồng chính** | 1. Mở danh sách đơn. 2. Chọn đơn → xem chi tiết món. 3. Cập nhật trạng thái món. 4. Khi tất cả món `READY`/`SERVED` → cập nhật trạng thái đơn. |
-| **Luồng thay thế** | **3a.** Thiếu nguyên liệu (SPCT `OUT_OF_STOCK`) → báo cáo quản lý nhập thêm. |
-
-### Đặc tả UC-NV – Thu ngân / Xác nhận thanh toán
-
-| Thuộc tính | Nội dung |
-| :--- | :--- |
-| **Tên UC** | Thu ngân / Xác nhận thanh toán |
-| **Tác nhân** | Nhân viên (thu ngân) |
-| **Mô tả** | Xác nhận thanh toán (tiền mặt / chuyển khoản / VNPAY), lập hóa đơn, giải phóng bàn, trừ kho |
-| **Tiền điều kiện** | Đơn đã chế biến xong (`COMPLETED`), chưa thanh toán |
-| **Hậu điều kiện** | Tạo `Payment` (`COMPLETED`); đơn → `PAID`; bàn → `AVAILABLE`; **trừ kho SPCT theo công thức TPSP** (nếu chưa trừ) |
-| **Luồng chính** | 1. Mở đơn cần thanh toán. 2. Hiển thị tổng tiền, voucher. 3. Chọn phương thức & xác nhận. 4. Tạo `Payment`, cập nhật đơn `PAID`. 5. Đọc `TPSP` từng món → trừ `stock_quantity` SPCT. 6. Giải phóng bàn, tạo hóa đơn. |
-| **Luồng thay thế** | **3a.** VNPAY/Bank → kiểm tra giao dịch trước khi xác nhận. **5a.** Tồn kho không đủ → ghi log cảnh báo, vẫn cho thanh toán. |
-
-### Đặc tả UC-AD – Quản lý thực đơn / Danh mục / Bàn / Người dùng / Voucher / Kho / Công thức / Nhập kho
-
-| Nhóm UC | Mô tả | Hậu điều kiện nổi bật |
+| Tác nhân | Phạm vi tương tác | Điều kiện truy cập |
 | :--- | :--- | :--- |
-| Quản lý thực đơn | Thêm/sửa/xóa món, giá, ảnh, đổi `AVAILABLE`↔`UNAVAILABLE` | `menu_items` cập nhật |
-| Quản lý danh mục | CRUD danh mục món ăn | `categories` cập nhật |
-| Quản lý bàn ăn | Thêm bàn, số ghế, xuất link & mã QR | `restaurant_tables` cập nhật |
-| Quản lý người dùng | Quản lý tài khoản, phân quyền `ADMIN/STAFF/CUSTOMER`, bật-khóa | `users` cập nhật |
-| Quản lý voucher | Tạo mã giảm giá % / số tiền, điều kiện & thời hạn | `vouchers` cập nhật |
-| Quản lý kho (SPCT) | Quy cách, đơn vị, tồn kho, ngưỡng tối thiểu; cảnh báo sắp hết | `product_details` cập nhật; `stock≤0` → `OUT_OF_STOCK` |
-| Quản lý công thức (TPSP) | Định lượng nguyên liệu cho từng món | `product_recipes` cập nhật |
-| Nhập kho / Duyệt phiếu (ĐNP) | Lập phiếu nhập; **duyệt → cộng tồn** SPCT | `PENDING→COMPLETED`; `stock += quantity` |
+| Khách hàng | Xem thực đơn, giỏ hàng, đặt món, tra cứu đơn, yêu cầu tính tiền và xem mã QR | Khách vãng lai được đặt món; hồ sơ và lịch sử cá nhân cần đăng nhập |
+| Nhân viên | Xử lý đơn và món tại bếp, quản lý trạng thái bàn, thu ngân | Tài khoản có vai trò STAFF hoặc ADMIN |
+| Quản trị viên | Quản lý danh mục, món, bàn, tài khoản, voucher, kho, công thức, phiếu nhập và báo cáo | Vai trò ADMIN; sử dụng được cả chức năng của Nhân viên |
+| Dịch vụ VietQR | Cung cấp ảnh QR chuyển khoản cho trình duyệt | Hệ thống bên ngoài tại img.vietqr.io; không xác nhận tiền đã vào tài khoản |
 
----
+Ranh giới hệ thống không bao gồm ứng dụng ngân hàng của khách hay việc nhân viên kiểm tra sao kê. Việc tạo mã QR và việc ghi nhận thanh toán là hai thao tác khác nhau. Các chức năng kho, công thức và phiếu nhập thuộc phân hệ quản trị theo quy tắc bảo vệ `/api/admin/**` trong `SecurityConfig`.
 
-## 4. Thiết kế cơ sở dữ liệu (Thực thể – Liên kết)
+<!-- pagebreak -->
 
-Hệ thống gồm **12 thực thể** nghiệp vụ, ánh xạ 1-1 với 12 bảng MySQL qua Spring Data JPA/Hibernate.
+## 3.2. Biểu đồ ca sử dụng (Use Case Diagram)
 
-### 4.1. Mô tả các thực thể và thuộc tính
+### 3.2.1. Use Case tổng quát
 
-| STT | Ký hiệu ERD | Bảng | Thuộc tính chính | Mô tả |
-| :--: | :--- | :--- | :--- | :--- |
-| 1 | **TK** | `users` | id, username, password, fullName, email, phone, address, role, status | Tài khoản (ADMIN/STAFF/CUSTOMER) |
-| 2 | **Bàn** | `restaurant_tables` | id, tableNumber, capacity, status, qrCode | Bàn ăn, trạng thái `AVAILABLE/OCCUPIED/PAYING` |
-| 3 | **Loại món** | `categories` | id, name, description, image, status | Danh mục phân loại món |
-| 4 | **SP** | `menu_items` | id, categoryId, name, description, price, image, status | Món ăn/đồ uống |
-| 5 | **SPCT** | `product_details` | id, menuItemId, sku, variantName, unit, stockQuantity, minStockAlert, costPrice, sellingPrice, status | Nguyên liệu/quy cách kho |
-| 6 | **TPSP** | `product_recipes` | id, productId, ingredientDetailId, quantity, unit, note | Định lượng công thức món ăn |
-| 7 | **Đơn** | `orders` | id, orderCode, tableId, customerId, staffId, orderType, deliveryAddress, contactPhone, status, totalAmount, stockDeducted, note | Đơn hàng bán ra |
-| 8 | **CT ĐƠN** | `order_items` | id, orderId, menuItemId, quantity, price, status, note | Chi tiết món trong đơn |
-| 9 | **ĐNP** | `purchase_orders` | id, code, creatorId, supplierName/Phone/Address, status, totalAmount, note | Phiếu nhập kho |
-| 10 | **CT ĐN** | `purchase_order_items` | id, purchaseOrderId, productDetailId, quantity, unitPrice, totalPrice, note | Chi tiết nguyên liệu nhập |
-| 11 | **Voucher** | `vouchers` | id, code, discountType, discountValue, maxDiscountAmount, minOrderAmount, startDate, endDate, usageLimit, usedCount, active | Mã giảm giá |
-| 12 | **Thanh toán** | `payments` | id, orderId, paymentMethod, amount, voucherCode, discountAmount, status, paidAt | Giao dịch thanh toán |
+![Hình 3.1 – Biểu đồ Use Case tổng quát](bao-cao/images/usecase-tong-quat.png)
 
-### 4.2. Mô tả các mối quan hệ
+Biểu đồ tổng quát gom các mục tiêu theo phân hệ. Tác nhân nằm ngoài biên hệ thống; liên kết với use case là đường liền không có mũi tên. Quan hệ khái quát hóa đi từ Quản trị viên đến Nhân viên, với tam giác rỗng ở phía tác nhân được kế thừa.
 
-| Quan hệ | Thực thể | Bản số | Diễn giải |
-| :--- | :--- | :--- | :--- |
-| R1 | Loại món – SP | 1 – N | Một danh mục có nhiều món |
-| R2 | SP – SPCT | 1 – N | Một món có nhiều quy cách/biến thể kho |
-| R3 | SP – TPSP | 1 – N | Một món có nhiều dòng công thức |
-| R4 | SPCT – TPSP | 1 – N | Một nguyên liệu xuất hiện trong nhiều công thức |
-| R5 | SPCT – CT ĐN | 1 – N | Một nguyên liệu được nhập qua nhiều phiếu |
-| R6 | Bàn – Đơn | 1 – N | Một bàn có nhiều đơn theo thời gian |
-| R7 | TK(khách) – Đơn | 1 – N | Một khách có nhiều đơn |
-| R8 | TK(NV) – Đơn | 1 – N | Một nhân viên xử lý nhiều đơn |
-| R9 | Đơn – CT ĐƠN | 1 – N | Một đơn gồm nhiều món |
-| R10 | SP – CT ĐƠN | 1 – N | Một món xuất hiện trong nhiều chi tiết đơn |
-| R11 | Đơn – Thanh toán | 1 – 1 | Mỗi đơn có đúng 1 giao dịch thanh toán |
-| R12 | TK – ĐNP | 1 – N | Một nhân viên lập nhiều phiếu nhập |
-| R13 | ĐNP – CT ĐN | 1 – N | Một phiếu gồm nhiều dòng nguyên liệu |
-| R14 | Voucher – Thanh toán | 1 – N (lỏng) | Liên kết theo mã: `payment.voucher_code = voucher.code` (không dùng khóa ngoại) |
+<!-- pagebreak -->
 
----
+### 3.2.2. Phân hệ Khách hàng
 
-## 5. Biểu đồ lớp (Class Diagram)
+![Hình 3.2 – Biểu đồ Use Case phân hệ Khách hàng](bao-cao/images/usecase-khach-hang.png)
 
-### 5.1. Biểu đồ lớp tổng quan theo kiến trúc phân tầng
+Tìm kiếm hoặc lọc món là hành vi tùy chọn, nên `extend` hướng về “Xem thực đơn”. Đặt món hỗ trợ ăn tại bàn, đến lấy và giao hàng. Khách có thể chọn bàn trực tiếp hoặc quét QR; không bắt buộc quét QR. “Yêu cầu tính tiền” chỉ chuyển bàn sang `PAYING`, không bắt buộc xem QR hay đồng nghĩa với thanh toán thành công.
 
-**Hình 2.5 – Biểu đồ lớp tổng quan theo kiến trúc phân tầng**
+<!-- pagebreak -->
 
-![Hình 2.5 – Biểu đồ lớp tổng quan](bao-cao/images/class-tong-quan.png)
+### 3.2.3. Phân hệ Nhân viên
 
-**Mô tả Hình 2.5:** Hệ thống tổ chức theo kiến trúc phân tầng: **Controller** (17 REST Controller) → **Service** (9 cặp interface/impl) → **Repository** (8 interface kế thừa `JpaRepository`) → **Entity** (12 thực thể ánh xạ 12 bảng). Bổ trợ: **DTO** (cách ly dữ liệu truyền tải), **Security** (JwtAuthenticationFilter, JwtTokenProvider), **Config** (SecurityConfig, DataInitializer). Controller gọi Service, Service truy cập Repository, Repository ánh xạ ORM xuống Entity; Security lọc JWT trước khi vào Controller.
+![Hình 3.3 – Biểu đồ Use Case phân hệ Nhân viên](bao-cao/images/usecase-nhan-vien.png)
 
-### 5.2. Biểu đồ lớp chi tiết mô hình nghiệp vụ (domain model)
+“Thu ngân” bao gồm xem hóa đơn và ghi nhận thanh toán; mũi tên `include` đi từ use case cơ sở đến hành vi bắt buộc. Áp dụng voucher hoặc xem QR chỉ xảy ra khi có điều kiện tương ứng, nên `extend` đi từ hành vi mở rộng về “Thu ngân”. Đăng nhập là tiền điều kiện của nghiệp vụ, không phải một bước `include` lặp lại trong mọi use case.
 
-**Hình 2.6 – Biểu đồ lớp chi tiết mô hình nghiệp vụ**
+<!-- pagebreak -->
 
-![Hình 2.6 – Biểu đồ lớp chi tiết mô hình nghiệp vụ](bao-cao/images/class-domain.png)
+### 3.2.4. Phân hệ Quản trị viên
 
-**Mô tả Hình 2.6:** Các lớp thực thể cốt lõi và quan hệ: `Category` 1–0..* `MenuItem`; `MenuItem` 1–0..* `OrderItem`; `Order` 1–1..* `OrderItem`; `User` 1–0..* `Order`; `RestaurantTable` 1–0..* `Order`; `Order` 1–0..1 `Payment`; `Voucher` tham chiếu gián tiếp qua `voucherCode`. Các lớp còn lại (`ProductDetail`, `ProductRecipe`, `PurchaseOrder`, `PurchaseOrderItem`) mở rộng mô hình kho (xem mục 4).
+![Hình 3.4 – Biểu đồ Use Case phân hệ Quản trị viên](bao-cao/images/usecase-quan-tri.png)
 
----
+Mỗi nhóm quản lý gồm các thao tác phù hợp như thêm, sửa, xóa hoặc đổi trạng thái. Khóa/mở tài khoản là thao tác của quản lý tài khoản, không tách thành quan hệ `extend` chỉ để liệt kê CRUD. Phiếu nhập được duyệt mới làm tăng tồn kho.
 
-## 6. Biểu đồ tuần tự (Sequence Diagram)
+<!-- pagebreak -->
 
-### 6.1. Đăng nhập hệ thống
+## 3.3. Đặc tả các Use Case chính
 
-**Hình 2.7 – Biểu đồ tuần tự: Đăng nhập hệ thống**
+### 3.3.1. UC01 – Đăng nhập
 
-![Hình 2.7 – Biểu đồ tuần tự: Đăng nhập](bao-cao/images/sequence-dang-nhap.png)
+| Thuộc tính | Nội dung |
+| :--- | :--- |
+| Tác nhân | Khách hàng, Nhân viên hoặc Quản trị viên |
+| Mục tiêu | Xác thực tài khoản và truy cập đúng vai trò |
+| Tiền điều kiện | Tài khoản đã được đăng ký hoặc được quản trị viên tạo |
+| Hậu điều kiện | Thành công: trả JWT và thông tin vai trò; thất bại: không tạo phiên đăng nhập mới |
+| Luồng chính | 1. Người dùng nhập tên đăng nhập, mật khẩu.<br>2. Giao diện gửi yêu cầu đăng nhập.<br>3. AuthenticationManager xác thực thông qua UserDetailsService, kiểm tra mật khẩu và trạng thái tài khoản.<br>4. Hệ thống sinh JWT, đọc thông tin tài khoản và trả AuthResponse.<br>5. Giao diện lưu token và điều hướng theo vai trò. |
+| Luồng thay thế | 3a. Tài khoản không tồn tại hoặc sai mật khẩu: báo lỗi, cho phép nhập lại.<br>3b. Tài khoản INACTIVE: từ chối xác thực. |
 
-**Mô tả Hình 2.7:** Người dùng nhập thông tin trên React → `POST /api/auth/login` → AuthController ủy quyền AuthService: tìm tài khoản qua UserRepository, đối chiếu mật khẩu (PasswordEncoder), kiểm tra trạng thái, sinh JWT qua JwtTokenProvider. Phản hồi `AuthResponse` (JWT + thông tin) → trình duyệt lưu token, điều hướng theo vai trò. Luồng thay thế: sai thông tin (lỗi 401), tài khoản bị khóa (`INACTIVE`). Sau đó Axios Interceptor tự đính kèm JWT vào mọi request.
+<!-- pagebreak -->
 
-### 6.2. Đặt món của Khách hàng
+### 3.3.2. UC02 – Đặt món
 
-**Hình 2.8 – Biểu đồ tuần tự: Đặt món của Khách hàng**
+| Thuộc tính | Nội dung |
+| :--- | :--- |
+| Tác nhân | Khách hàng; không bắt buộc đăng nhập |
+| Mục tiêu | Tạo đơn từ giỏ hàng theo hình thức đã chọn |
+| Tiền điều kiện | Giỏ hàng có ít nhất một món; số lượng từng món lớn hơn 0 |
+| Hậu điều kiện | Order và các OrderItem ở trạng thái PENDING; tổng tiền tính từ giá món trên máy chủ. Bàn đang AVAILABLE chuyển OCCUPIED đối với đơn ăn tại bàn. Khách đã đăng nhập được gắn đơn vào tài khoản. |
+| Luồng chính | 1. Khách chọn món, số lượng và ghi chú.<br>2. Chọn DINE_IN, PICKUP hoặc DELIVERY.<br>3. DINE_IN: chọn bàn/quét QR; PICKUP: nhập SĐT; DELIVERY: nhập địa chỉ và SĐT.<br>4. Xác nhận đặt món.<br>5. Hệ thống kiểm tra bàn hoặc địa chỉ, kiểm tra từng món còn AVAILABLE.<br>6. Sinh orderCode; lưu đơn và chi tiết; tính tổng tiền, cập nhật bàn nếu cần trong cùng transaction.<br>7. Trả mã đơn để tra cứu tiến độ. |
+| Luồng thay thế | 3a. Thiếu bàn, địa chỉ hoặc SĐT cần thiết: giao diện yêu cầu bổ sung.<br>5a. Bàn không tồn tại hoặc món ngừng bán: báo lỗi; rollback dữ liệu đã ghi tạm, giữ giỏ hàng.<br>6a. Lỗi lưu dữ liệu: rollback toàn bộ transaction, không để lại đơn một phần. |
 
-![Hình 2.8 – Biểu đồ tuần tự: Đặt món](bao-cao/images/sequence-dat-mon.png)
+Voucher không thuộc yêu cầu tạo đơn hiện tại: `OrderRequest` không có trường mã giảm giá. SĐT cho đơn đến lấy/giao hàng được kiểm tra tại giao diện; backend hiện kiểm tra bàn và địa chỉ theo hình thức đặt món.
 
-**Mô tả Hình 2.8:** Khách chọn món vào giỏ → `POST /api/customer/orders` → OrderController gọi OrderService: kiểm tra bàn (ăn tại bàn → chuyển `OCCUPIED`), kiểm tra từng món `AVAILABLE`, sinh mã đơn (`ORD-...`), lưu `Order` + `OrderItems` (`PENDING`), tính tổng tiền. Trả `OrderResponse` (mã đơn, tổng tiền) để khách theo dõi tiến độ. Luồng thay thế: món hết hàng/thiếu bàn/địa chỉ → báo lỗi, giữ giỏ hàng.
+<!-- pagebreak -->
 
-### 6.3. Xử lý thanh toán
+### 3.3.3. UC03 – Thu ngân
 
-**Hình 2.9 – Biểu đồ tuần tự: Xử lý thanh toán**
+| Thuộc tính | Nội dung |
+| :--- | :--- |
+| Tác nhân | Nhân viên hoặc Quản trị viên |
+| Mục tiêu | Ghi nhận số tiền đã thu và trả hóa đơn |
+| Tiền điều kiện | Đã đăng nhập đúng quyền; đơn tồn tại, chưa COMPLETED |
+| Hậu điều kiện | Payment.status = COMPLETED, có paidAt; Order.status = COMPLETED. Bàn chuyển AVAILABLE chỉ nếu không còn đơn hoạt động trên bàn. |
+| Luồng chính | 1. Nhân viên chọn đơn và xem hóa đơn.<br>2. Chọn phương thức; nhập voucher nếu có.<br>3. Nếu chuyển khoản, mở QR và đối chiếu sao kê; nếu tiền mặt, kiểm tra tiền đã thu.<br>4. Sau khi nhận/đối chiếu đủ tiền, gửi xác nhận thanh toán.<br>5. Máy chủ đọc đơn, kiểm tra trạng thái; xác thực voucher hoặc số tiền giảm và tính số tiền phải thu.<br>6. Lưu/cập nhật Payment, cập nhật Order, kiểm tra các đơn còn hoạt động trước khi giải phóng bàn.<br>7. Commit transaction và trả hóa đơn. |
+| Luồng thay thế | 3a. Chưa nhận đủ tiền: chưa gửi xác nhận.<br>5a. Đơn đã COMPLETED: từ chối ghi nhận lại.<br>5b. Voucher không hợp lệ hoặc số tiền giảm vượt tổng tiền: báo lỗi, không ghi nhận thanh toán; sửa dữ liệu rồi gửi lại.<br>6a. Lỗi dữ liệu: rollback transaction; không trả kết quả thành công. |
 
-![Hình 2.9 – Biểu đồ tuần tự: Xử lý thanh toán](bao-cao/images/sequence-thanh-toan.png)
+Xác thực lại voucher khi xác nhận thanh toán là bắt buộc nếu request có mã; kết quả “kiểm tra voucher” trước đó chỉ là xem trước. Số tiền giảm bằng voucher được tính phía máy chủ, không lấy từ số tiền giảm do khách gửi.
 
-**Mô tả Hình 2.9:** Nhân viên chọn đơn → xem trước hóa đơn (`GET /api/staff/payment/receipt/{orderId}`) → nhập voucher (nếu có), chọn phương thức → `POST /api/staff/payment/process`. PaymentService gọi VoucherService kiểm tra hạn dùng/số lượt/điều kiện rồi **tính số tiền giảm phía máy chủ** (chống gian lận). Nếu chuyển khoản → sinh mã QR VietQR (nội dung = mã đơn). Cuối cùng lưu `Payment` (`COMPLETED`), đơn → `PAID`, giải phóng bàn (`AVAILABLE`), trả hóa đơn.
+<!-- pagebreak -->
 
----
+## 3.4. Biểu đồ lớp (Class Diagram)
 
-## 7. Biểu đồ hành động (Activity Diagram)
+### 3.4.1. Các lớp đặt món và thanh toán
 
-### 7.1. Luồng đặt món của Khách hàng
+![Hình 3.5 – Biểu đồ lớp đặt món và thanh toán](bao-cao/images/class-domain.png)
 
-**Hình 2.10 – Biểu đồ hành động: Luồng đặt món của Khách hàng**
+`Order` sở hữu `OrderItem` bằng composition. Mỗi đơn có `0..1` Payment; khách, nhân viên và bàn đều có thể vắng mặt (`0..1`). `Payment.voucherCode` chỉ lưu chuỗi mã, không phải khóa ngoại tới `Voucher`.
 
-![Hình 2.10 – Biểu đồ hành động: Luồng đặt món](bao-cao/images/activity-dat-mon.png)
+<!-- pagebreak -->
 
-**Mô tả Hình 2.10:** Bắt đầu từ xem thực đơn → thêm món vào giỏ → kiểm tra lại đơn → chọn hình thức đặt. Nhánh quyết định "Hình thức đặt món": **Ăn tại bàn** (xác định bàn qua sơ đồ/QR, kiểm tra bàn hợp lệ — sai thì yêu cầu chọn lại), **Mang về** (nhập SĐT), **Giao tận nơi** (nhập địa chỉ + SĐT). Hợp nhất → kiểm tra "Món còn bán & thông tin hợp lệ": sai → báo lỗi, quay lại giỏ; đúng → sinh mã đơn, tạo `Order`+`OrderItems` (`PENDING`), cập nhật bàn `OCCUPIED`, ghi nhận tài khoản (nếu đã đăng nhập).
+### 3.4.2. Các lớp quản lý kho và nhập hàng
 
-### 7.2. Luồng xử lý thanh toán tại quầy
+![Hình 3.6 – Biểu đồ lớp kho, công thức và phiếu nhập](bao-cao/images/class-kho.png)
 
-**Hình 2.11 – Biểu đồ hành động: Luồng xử lý thanh toán tại quầy**
+`User` và `MenuItem` dùng lại từ Hình 3.5, không phải các lớp mới. `ProductDetail` lưu quy cách/tồn kho và được tham chiếu làm nguyên liệu qua `ProductRecipe`. Phiếu nhập sở hữu các dòng `PurchaseOrderItem`. Hai biểu đồ bao phủ 12 lớp thực thể; bỏ getter/setter, timestamp và thuộc tính mô tả ít ảnh hưởng tới quan hệ. Phép tính tổng tiền, kiểm tra voucher và xử lý thanh toán thuộc Service, không gán các phương thức không tồn tại cho Entity.
 
-![Hình 2.11 – Biểu đồ hành động: Luồng xử lý thanh toán](bao-cao/images/activity-thanh-toan.png)
+<!-- landscape -->
 
-**Mô tả Hình 2.11:** Nhân viên chọn đơn → xem trước hóa đơn → kiểm tra "Khách có mã giảm giá?": có → nhập mã, kiểm tra voucher hợp lệ → tính tiền giảm (không hợp lệ → thông báo, tiếp tục không giảm); không → bỏ qua giảm giá. Hợp nhất số tiền phải thu, chọn phương thức: **Chuyển khoản** (sinh QR VietQR, khách chuyển khoản, NV xác nhận sao kê) hoặc **Tiền mặt/ví**. Cuối cùng ghi nhận thanh toán (`Payment COMPLETED`, `Order PAID`), giải phóng bàn, in/gửi hóa đơn.
+## 3.5. Biểu đồ tuần tự (Sequence Diagram)
 
----
+### 3.5.1. UC01 – Đăng nhập
 
-## 8. Biểu đồ thành phần & Biểu đồ triển khai
+![Hình 3.7 – Biểu đồ tuần tự đăng nhập](bao-cao/images/sequence-dang-nhap.png)
 
-### 8.1. Biểu đồ thành phần
+`AuthenticationManager` sử dụng `UserDetailsService`/JPA để tìm tài khoản và kiểm tra mật khẩu, trạng thái. Chỉ nhánh xác thực thành công mới gọi `JwtTokenProvider`. Khung `alt` chứa riêng luồng lỗi và luồng thành công; đường liền là lời gọi, nét đứt là phản hồi, thanh hẹp trên lifeline biểu diễn thời gian thực thi.
 
-**Hình 2.12 – Biểu đồ thành phần của hệ thống**
+<!-- pagebreak -->
 
-![Hình 2.12 – Biểu đồ thành phần](bao-cao/images/component-he-thong.png)
+### 3.5.2. UC02 – Đặt món
 
-**Mô tả Hình 2.12:** 5 thành phần: **Frontend (React SPA)** gọi REST API qua **Nginx** (reverse proxy `/api/**` + serve static SPA) đến **Spring Boot Backend** (Controllers, Services, JPA, Security JWT, Config); Backend truy cập **MySQL 8.0** bằng Spring Data JPA (JDBC) và kết nối **Dịch vụ VietQR** (bên ngoài) qua HTTPS để sinh mã QR.
+![Hình 3.8 – Biểu đồ tuần tự đặt món](bao-cao/images/sequence-dat-mon.png)
 
-### 8.2. Biểu đồ triển khai
+Repository/Hibernate được rút gọn thành thông điệp JPA. Nhánh lỗi rollback; nhánh hợp lệ trả `201 Created`. Khách vãng lai có `customerId = null` vẫn đặt được. Các thao tác lưu tạm cùng transaction, không tạo đơn một phần.
 
-**Hình 2.13 – Biểu đồ triển khai của hệ thống**
+<!-- pagebreak -->
 
-![Hình 2.13 – Biểu đồ triển khai](bao-cao/images/deployment-he-thong.png)
+### 3.5.3. UC03 – Ghi nhận thanh toán
 
-**Mô tả Hình 2.13:** Triển khai theo Docker Compose. **Thiết bị người dùng** (trình duyệt) → **Docker Host** chạy 3 container: `restaurant_frontend` (Nginx Alpine, cổng 80), `restaurant_backend` (Spring Boot, JDK 17, cổng 8081), `restaurant_mysql` (MySQL 8.0, volume `mysql_data`). Backend kết nối **Dịch vụ VietQR** (cloud) qua HTTPS 443. Kênh truyền: HTTPS (user→Nginx), HTTP (Nginx→backend), TCP 3306 (backend→MySQL, mạng nội bộ).
+![Hình 3.9 – Biểu đồ tuần tự ghi nhận thanh toán](bao-cao/images/sequence-thanh-toan.png)
 
----
+Biểu đồ minh họa luồng thành công sau khi đã nhận/đối chiếu tiền. Khung `opt` chỉ thực hiện khi có voucher hoặc có bàn. Lỗi voucher/dữ liệu xử lý theo luồng thay thế UC03 và rollback transaction. `processStaffPayment` đặt đơn thành `COMPLETED`; không sinh QR, gọi ngân hàng hay trừ kho trong phương thức này.
 
-## 9. Luồng nghiệp vụ kho tự động (tổng kết)
+<!-- portrait -->
 
-```
-[Nhập hàng]   Tạo ĐNP (PENDING) ──Duyệt──▶ stock SPCT (+ quantity)
-[Bán hàng]    Đặt món (PENDING) ──Bếp xử lý──▶ Đọc TPSP ──Thanh toán──▶ stock SPCT (−)
-```
+## 3.6. Biểu đồ hoạt động (Activity Diagram)
 
-| Giai đoạn | Sự kiện | Ảnh hưởng kho |
-| :--- | :--- | :--- |
-| Nhập | Duyệt phiếu nhập (`complete`) | **Cộng** tồn SPCT theo số lượng nhập |
-| Bán | Xác nhận thanh toán (`processPayment`) | **Trừ** tồn SPCT theo định mức công thức TPSP |
+### 3.6.1. UC02 – Luồng đặt món
 
----
+![Hình 3.10 – Biểu đồ hoạt động đặt món](bao-cao/images/activity-dat-mon.png)
 
-*Hết nội dung Phân tích & Thiết kế hệ thống.*
+Hai làn phân định trách nhiệm của Khách hàng và Hệ thống. Luồng lỗi quay về sửa yêu cầu, giữ giỏ hàng. Khi hợp lệ, hệ thống lưu đơn/chi tiết trong transaction, cập nhật bàn nếu cần rồi trả mã đơn.
+
+<!-- pagebreak -->
+
+### 3.6.2. UC03 – Luồng thu ngân
+
+![Hình 3.11 – Biểu đồ hoạt động thu ngân](bao-cao/images/activity-thanh-toan.png)
+
+Nhân viên chỉ gửi xác nhận sau khi nhận đủ tiền. Điều kiện hợp lệ dẫn tới lưu Payment, hoàn tất đơn và kiểm tra bàn; điều kiện lỗi dẫn tới rollback, kết thúc lần xác nhận không thành công.
+
+<!-- pagebreak -->
+
+## 3.7. Thiết kế kiến trúc
+
+### 3.7.1. Biểu đồ thành phần (Component Diagram)
+
+![Hình 3.12 – Biểu đồ thành phần hệ thống](bao-cao/images/component-he-thong.png)
+
+React sử dụng giao diện REST do backend cung cấp. API gọi Service; Service sử dụng tầng Spring Data JPA để truy cập MySQL. Backend chỉ tạo URL QR, còn trình duyệt tải ảnh trực tiếp từ VietQR qua HTTPS. Các hộp thành phần thể hiện phụ thuộc phần mềm; không dùng chúng thay cho biểu đồ lớp.
+
+<!-- pagebreak -->
+
+### 3.7.2. Biểu đồ triển khai (Deployment Diagram)
+
+![Hình 3.13 – Biểu đồ triển khai Docker Compose](bao-cao/images/deployment-he-thong.png)
+
+Nút thiết bị/môi trường thực thi chứa các artifact được triển khai. Trình duyệt tải SPA từ Nginx và gửi `/api` qua reverse proxy tới Spring Boot. Backend kết nối MySQL qua TCP 3306 nội bộ; `mysql_data` gắn tại `/var/lib/mysql`. Docker Compose hiện dùng HTTP ở Nginx, chưa cấu hình TLS; kênh tải ảnh VietQR là HTTPS. Cổng 3307 chỉ là ánh xạ MySQL ra máy chủ.
+
+<!-- pagebreak -->
+
+## 3.8. Các điểm cần phân biệt trong triển khai
+
+- **Trạng thái đơn:** enum có `PAID`, nhưng `processStaffPayment` đang ghi `COMPLETED`. Báo cáo mô tả giá trị thực tế, không tự thêm bước đổi sang `PAID`.
+- **Thời điểm trừ kho:** `OrderServiceImpl.updateOrderStatus` gọi trừ kho khi chuyển đơn sang `PROCESSING` hoặc `COMPLETED` và chưa `stockDeducted`. Chỉ đổi trạng thái từng món không gọi hàm trừ kho; `PaymentServiceImpl` cũng không gọi hàm này. Duyệt phiếu nhập trong `completePurchaseOrder` mới cộng tồn.
+- **QR và voucher:** URL QR hiện lấy `Order.totalAmount`, không trừ voucher như số tiền trong Payment. Nhân viên cần đối chiếu số tiền thực nhận; không coi ảnh QR là kết quả thanh toán đã xác nhận.
+- **Thanh toán trực tuyến:** không có webhook xác nhận ngân hàng; `VNPAY` hiện là lựa chọn/giá trị phương thức ghi nhận, chưa phải một luồng tích hợp cổng thanh toán.
+
+Các giới hạn này là đặc điểm của mã nguồn hiện tại, không phải chức năng đã hoàn thiện hay thay đổi được thực hiện trong chương thiết kế.

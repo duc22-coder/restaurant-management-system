@@ -1,0 +1,25 @@
+@startuml
+!include _theme.puml
+top to bottom direction
+node "Thiết bị người dùng" as Device <<device>> {
+  node "Trình duyệt" as Browser <<executionEnvironment>> {
+    artifact "React SPA đang chạy" as SPA
+  }
+}
+node "Máy chủ Docker" as Host <<device>> {
+  node "restaurant_frontend\nNginx :80" as Front <<executionEnvironment>> {
+    artifact "dist/ — HTML, CSS, JS" as Dist
+  }
+  node "restaurant_backend\nJava 17 / Spring Boot :8081" as Back <<executionEnvironment>> {
+    artifact "app.jar" as Jar
+  }
+  node "restaurant_mysql\nMySQL 8.0 :3306" as MySQL <<executionEnvironment>>
+  artifact "mysql_data" as Volume <<volume>>
+}
+node "img.vietqr.io" as QR <<external>>
+Browser -right- Front : HTTP\nFRONTEND_PORT → 80
+Front -down- Back : HTTP /api\n8081
+Back -down- MySQL : JDBC / TCP\n3306
+MySQL -right- Volume : /var/lib/mysql
+Browser -down- QR : HTTPS: 443\ntải ảnh QR
+@enduml

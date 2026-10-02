@@ -1,0 +1,2 @@
+python-docx==1.2.0
+plantuml-local-client==1.2022.6

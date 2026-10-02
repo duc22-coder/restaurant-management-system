@@ -1,0 +1,31 @@
+@startuml
+!include _theme.puml
+skinparam roundcorner 20
+|Nhân viên|
+start
+:Chọn đơn, xem hóa đơn;
+:Chọn phương thức;\nnhập voucher nếu có;
+:Thu tiền / đối chiếu\nsao kê khi chuyển khoản;
+if (Đã nhận đủ tiền?) then ([chưa])
+  :Chờ nhận đủ tiền;\nchưa gửi xác nhận;
+  stop
+else ([rồi])
+  :Gửi xác nhận thanh toán;
+endif
+|Hệ thống|
+:Kiểm tra đơn, xác thực\nvoucher / số tiền giảm;
+if (Điều kiện hợp lệ?) then ([không])
+  :Báo lỗi; rollback;\nyêu cầu kiểm tra lại;
+  stop
+else ([có])
+  :Lưu Payment(COMPLETED);\nOrder.status = COMPLETED;
+  if (Có bàn và không còn\nđơn hoạt động?) then ([có])
+    :Đặt bàn = AVAILABLE;
+  else ([không])
+  endif
+  :Commit; trả hóa đơn;
+  |Nhân viên|
+  :Hiển thị hóa đơn;
+  stop
+endif
+@enduml

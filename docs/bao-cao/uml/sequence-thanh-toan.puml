@@ -1,0 +1,41 @@
+@startuml
+!include _theme.puml
+hide footbox
+skinparam maxMessageSize 260
+autonumber
+actor "Nhân viên" as NV
+participant "ui :\nStaffDashboard" as UI <<boundary>>
+participant "api :\nStaffPaymentController" as API <<control>>
+participant "payments :\nPaymentService" as Service <<control>>
+participant "vouchers :\nVoucherService" as Voucher <<control>>
+database "db :\nMySQL" as DB
+
+NV -> UI : Xác nhận\nđã thu tiền
+UI -> API : POST /api/staff/\npayment/process
+activate API
+API -> Service : processStaffPayment(request)
+activate Service
+Service -> DB : Đọc đơn qua OrderRepository
+activate DB
+DB --> Service : Order
+deactivate DB
+opt có mã voucher
+  Service -> Voucher : Xác thực voucher;\nghi nhận lượt dùng
+  activate Voucher
+  Voucher --> Service : Số tiền giảm hợp lệ
+  deactivate Voucher
+end
+Service -> DB : Lưu Payment(total - discount,\nCOMPLETED); Order → COMPLETED
+activate DB
+deactivate DB
+opt đơn có bàn
+  Service -> DB : Kiểm tra đơn trên bàn;\nAVAILABLE nếu không còn đơn
+  activate DB
+  DB --> Service : Trạng thái bàn sau xử lý
+  deactivate DB
+end
+Service --> API : PaymentResponse (hóa đơn)
+deactivate Service
+API --> UI : 200 OK
+deactivate API
+@enduml

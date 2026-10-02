@@ -1,0 +1,108 @@
+@startuml seq-05-quan-ly-nhap-kho-nguyen-lieu
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC05: QUẢN LÝ NHẬP KHO NGUYÊN LIỆU (ĐNP)
+'  Tương ứng biểu đồ ca sử dụng: use-case/05-quan-ly-nhap-kho-nguyen-lieu.puml
+'  Nghiệp vụ: lập phiếu nhập, duyệt phiếu, tự động cộng tồn kho SPCT.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         170
+
+autonumber
+hide footbox
+
+actor       "Quản trị viên"  as QTV
+participant "Giao diện\nAdmin" as FE
+participant "AdminPurchase\nOrderController" as Ctrl
+participant "PurchaseOrder\nService" as Svc
+participant "CSDL MySQL"     as DB
+
+== 1. Xem danh sách kho nguyên liệu ==
+QTV -> FE : Mở "Quản lý kho nguyên liệu"
+FE -> Ctrl : GET /api/admin/inventory
+Ctrl -> DB : SELECT product_details
+DB --> Ctrl : Danh sách SPCT (tồn kho, mức tối thiểu)
+Ctrl --> FE : 200 OK
+FE --> QTV : Hiển thị danh sách, cảnh báo sắp hết hàng
+
+== 2. Lập phiếu nhập kho ==
+QTV -> FE : Bấm "Lập phiếu nhập"
+QTV -> FE : Chọn nhà cung cấp, thêm nguyên liệu,\nnhập số lượng và đơn giá
+FE -> Ctrl : POST /api/admin/purchase-orders
+activate Ctrl
+Ctrl -> Svc : createPurchaseOrder(request, creatorId)
+activate Svc
+Svc -> DB : SELECT product_details (kiểm tra SPCT)
+loop Mỗi dòng nguyên liệu
+  Svc -> Svc : lineTotal = unitPrice x quantity
+end
+Svc -> Svc : Sinh mã phiếu PN{yyMMddHHmmss}
+Svc -> DB : INSERT purchase_orders (PENDING)
+Svc -> DB : INSERT purchase_order_items
+Svc --> Ctrl : PurchaseOrderResponse
+deactivate Svc
+Ctrl --> FE : 201 Created
+deactivate Ctrl
+FE --> QTV : Phiếu nhập ở trạng thái "Chờ duyệt"
+
+== 3. Duyệt phiếu nhập ==
+QTV -> FE : Bấm "Duyệt nhập kho"
+FE -> Ctrl : PATCH /api/admin/purchase-orders/{id}/complete
+activate Ctrl
+Ctrl -> Svc : completePurchaseOrder(id)
+activate Svc
+Svc -> DB : SELECT purchase_orders WHERE id = ?
+
+alt Phiếu đã hoàn tất hoặc đã hủy
+  Svc --> Ctrl : Lỗi "Không thể hoàn tất phiếu nhập"
+  Ctrl --> FE : 400 Bad Request
+  FE --> QTV : Thông báo lỗi
+else Phiếu đang PENDING
+  Svc -> DB : SELECT purchase_order_items
+  DB --> Svc : Danh sách nguyên liệu nhập
+  loop Mỗi dòng nguyên liệu
+    Svc -> Svc : newStock = oldStock + quantity
+    Svc -> DB : UPDATE product_details\nSET stock_quantity = newStock,\n cost_price = unit_price
+    opt Nguyên liệu đang OUT_OF_STOCK
+      Svc -> DB : UPDATE product_details SET status = ACTIVE
+    end
+  end
+  Svc -> DB : UPDATE purchase_orders SET status = COMPLETED
+  Svc --> Ctrl : PurchaseOrderResponse
+  Ctrl --> FE : 200 OK
+  FE --> QTV : Tồn kho đã được cộng, phiếu đã duyệt
+end
+deactivate Svc
+deactivate Ctrl
+
+opt Hủy phiếu nhập
+  QTV -> FE : Bấm "Hủy phiếu"
+  FE -> Ctrl : PATCH /api/admin/purchase-orders/{id}/cancel
+  Ctrl -> Svc : cancelPurchaseOrder(id)
+  Svc -> DB : UPDATE purchase_orders SET status = CANCELLED
+  Svc --> FE : 200 OK
+end
+
+== 4. Kiểm tra cảnh báo tồn kho ==
+QTV -> FE : Xem cảnh báo nguyên liệu sắp hết
+FE -> Ctrl : GET /api/admin/inventory/low-stock
+Ctrl -> DB : SELECT product_details WHERE stock <= min_stock
+DB --> Ctrl : Danh sách nguyên liệu cần nhập thêm
+Ctrl --> FE : 200 OK
+FE --> QTV : Hiển thị cảnh báo
+
+@enduml

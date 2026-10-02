@@ -1,0 +1,121 @@
+@startuml use-case-tong-quan
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG TỔNG QUAN (MỨC MODULE) — HỆ THỐNG QUẢN LÝ NHÀ HÀNG
+'  Biểu đồ này chỉ liệt kê các NHÓM CHỨC NĂNG (module) để nhìn tổng thể.
+'  Chi tiết từng nhóm được đặc tả ở các biểu đồ 01..08 kèm biểu đồ tuần tự.
+'
+'  Quy ước vẽ (UML 2.5):
+'    1. Actor vẽ hình người que, đặt NGOÀI khung hệ thống.
+'    2. Hệ thống là hình chữ nhật bao ngoài, tên ở chính giữa phía trên.
+'    3. Use case là hình elip, tên theo "Động từ + Đối tượng".
+'    4. Liên kết Actor - Use case: nét liền, KHÔNG có mũi tên.
+'    5. <<include>>: nét đứt, mũi tên từ UC chính -> UC bắt buộc.
+'    6. <<extend>> : nét đứt, mũi tên từ UC mở rộng -> UC gốc.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam nodesep                18
+skinparam ranksep                70
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActorFontStyle         bold
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBorderThickness 1.5
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontSize      16
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+' ------------------------------- ACTORS ------------------------------------
+actor "Khách hàng"    as KH
+actor "Nhân viên"     as NV
+actor "Quản trị viên" as QTV
+
+' --------------------------- HỆ THỐNG (BOUNDARY) ----------------------------
+rectangle "HỆ THỐNG QUẢN LÝ NHÀ HÀNG" {
+
+    ' ===== Nhóm dùng chung =====
+    together {
+        usecase "Đăng nhập / Đăng ký"          as UC_TaiKhoan
+        usecase "Quản lý thông tin cá nhân"    as UC_ThongTin
+    }
+
+    ' ===== Nhóm chức năng của KHÁCH HÀNG =====
+    together {
+        usecase "Xem thực đơn"          as UC_ThucDon
+        usecase "Đặt món"               as UC_DatMon
+        usecase "Theo dõi đơn hàng"     as UC_TheoDoi
+    }
+
+    ' ===== Nhóm chức năng của NHÂN VIÊN =====
+    together {
+        usecase "Quản lý bàn & phục vụ" as UC_Ban
+        usecase "Xử lý đơn hàng tại bếp" as UC_Bep
+        usecase "Thanh toán & hóa đơn"  as UC_ThanhToan
+    }
+
+    ' ===== Nhóm chức năng của QUẢN TRỊ VIÊN =====
+    together {
+        usecase "Quản lý thực đơn"            as UC_QLThucDon
+        usecase "Quản lý kho nguyên liệu"     as UC_QLKho
+        usecase "Quản lý nhập hàng"           as UC_QLNhapHang
+        usecase "Quản lý tài khoản & voucher" as UC_QLTaiKhoan
+        usecase "Báo cáo - thống kê"          as UC_BaoCao
+    }
+}
+
+' ------------------------------- ASSOCIATIONS -------------------------------
+KH  -  UC_ThucDon
+KH  -  UC_DatMon
+KH  -  UC_TheoDoi
+KH  -  UC_TaiKhoan
+KH  -  UC_ThongTin
+
+NV  - UC_Ban
+NV  - UC_Bep
+NV  - UC_ThanhToan
+NV  - UC_TaiKhoan
+NV  - UC_ThongTin
+
+QTV - UC_QLThucDon
+QTV - UC_QLKho
+QTV - UC_QLNhapHang
+QTV - UC_QLTaiKhoan
+QTV - UC_BaoCao
+QTV - UC_TaiKhoan
+QTV - UC_ThongTin
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_DatMon     ..> UC_ThucDon   : <<include>>
+UC_TheoDoi    ..> UC_DatMon    : <<include>>
+UC_Bep       ..> UC_QLKho     : <<include>>
+UC_ThanhToan ..> UC_Ban       : <<include>>
+UC_QLNhapHang ..> UC_QLKho    : <<include>>
+UC_QLThucDon ..> UC_QLKho     : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_ThongTin ..> UC_TaiKhoan : <<extend>>
+
+note right of UC_QLThucDon
+  Chi tiết từng nhóm chức năng:
+  • 01 Đặt món tại bàn
+  • 02 Đặt món giao tận nơi
+  • 03 Xử lý đơn hàng tại bếp
+  • 04 Thanh toán & giải phóng bàn
+  • 05 Quản lý nhập kho nguyên liệu
+  • 06 Quản lý thực đơn & định lượng
+  • 07 Đăng nhập / Đăng ký
+  • 08 Xem báo cáo - thống kê
+  Mỗi nhóm đều có biểu đồ tuần tự tương ứng.
+end note
+
+@enduml

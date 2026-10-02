@@ -1,0 +1,86 @@
+@startuml seq-08-xem-bao-cao-thong-ke
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC08: XEM BÁO CÁO - THỐNG KÊ
+'  Tương ứng biểu đồ ca sử dụng: use-case/08-xem-bao-cao-thong-ke.puml
+'  Nguồn dữ liệu: GET /api/admin/analytics/dashboard (AnalyticsServiceImpl)
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         170
+
+autonumber
+hide footbox
+
+actor       "Quản trị viên"  as QTV
+participant "Giao diện\nDashboard" as FE
+participant "AdminAnalytics\nController" as Ctrl
+participant "AnalyticsService" as Svc
+participant "CSDL MySQL"       as DB
+
+== 1. Mở trang tổng quan ==
+QTV -> FE : Truy cập /admin/dashboard
+FE -> Ctrl : GET /api/admin/analytics/dashboard
+activate Ctrl
+Ctrl -> Svc : getDashboardStats()
+activate Svc
+
+== 2. Tính các chỉ số tổng hợp ==
+Svc -> DB : SELECT SUM(amount) FROM payments
+DB --> Svc : Tổng doanh thu
+Svc -> DB : SELECT COUNT(*) FROM orders
+DB --> Svc : Tổng số đơn hàng
+Svc -> DB : SELECT COUNT(*) FROM orders WHERE status = COMPLETED
+DB --> Svc : Số đơn hoàn thành
+Svc -> Svc : successRate = completed / total x 100%
+Svc -> DB : SELECT COUNT(*) FROM restaurant_tables\nWHERE status IN (OCCUPIED, PAYING)
+DB --> Svc : Số bàn đang phục vụ
+
+== 3. Thống kê chi tiết ==
+Svc -> DB : SELECT món bán chạy (GROUP BY menu_item)
+DB --> Svc : Top 5 món bán chạy kèm doanh thu
+Svc -> DB : SELECT phương thức thanh toán, SUM(amount)\nGROUP BY payment_method
+DB --> Svc : Doanh thu theo CASH / BANK_TRANSFER / VNPAY
+
+Svc -> Svc : Tổng hợp DashboardStatsResponse
+Svc --> Ctrl : DashboardStatsResponse
+deactivate Svc
+Ctrl --> FE : 200 OK (JSON)
+deactivate Ctrl
+
+== 4. Hiển thị báo cáo ==
+FE -> FE : Vẽ thẻ số liệu và biểu đồ\n(top món, cơ cấu thanh toán)
+FE --> QTV : Hiển thị báo cáo tổng quan
+
+== 5. Tự động làm mới ==
+loop Polling mỗi 15 giây khi trang còn mở
+  FE -> Ctrl : GET /api/admin/analytics/dashboard
+  Ctrl -> Svc : getDashboardStats()
+  Svc -> DB : Các truy vấn thống kê (như trên)
+  DB --> Svc : Số liệu mới nhất
+  Svc --> Ctrl : DashboardStatsResponse
+  Ctrl --> FE : 200 OK
+  FE --> QTV : Cập nhật số liệu theo thời gian thực
+end
+
+opt Lọc theo khoảng thời gian (báo cáo mở rộng)
+  QTV -> FE : Chọn "Từ ngày" / "Đến ngày"
+  FE -> Ctrl : GET /api/admin/analytics/dashboard?from=&to=
+  Ctrl --> FE : Số liệu trong khoảng đã chọn
+  FE --> QTV : Vẽ lại báo cáo theo bộ lọc
+end
+
+@enduml

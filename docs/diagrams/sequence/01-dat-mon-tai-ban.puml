@@ -1,0 +1,99 @@
+@startuml seq-01-dat-mon-tai-ban
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC01: ĐẶT MÓN TẠI BÀN (QUÉT QR)
+'  Tương ứng biểu đồ ca sử dụng: use-case/01-dat-mon-tai-ban.puml
+'  Quy ước: mũi tên liền = thông điệp gọi (synchronous); mũi tên đứt = phản hồi;
+'           khối opt = luồng tùy chọn; khối loop = lặp; khối alt = rẽ nhánh.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         165
+
+autonumber
+hide footbox
+
+actor       "Khách hàng"        as KH
+participant "Giao diện\nReact" as FE
+participant "CustomerMenu\nController" as MenuCtrl
+participant "OrderController"  as OrderCtrl
+participant "OrderService"     as OrderSvc
+participant "CSDL MySQL"       as DB
+
+== 1. Xem thực đơn ==
+KH -> FE : Quét QR tại bàn (?tableId=1)
+FE -> MenuCtrl : GET /api/customer/menu?tableId=1
+MenuCtrl -> DB : SELECT categories, menu_items
+DB --> MenuCtrl : Danh sách món còn bán
+MenuCtrl --> FE : 200 OK (JSON thực đơn)
+FE --> KH : Hiển thị thực đơn theo danh mục
+
+opt Khách tìm kiếm / lọc món
+  KH -> FE : Nhập từ khóa hoặc chọn danh mục
+  FE -> MenuCtrl : GET /api/customer/menu?categoryId=&search=
+  MenuCtrl --> FE : Danh sách món đã lọc
+end
+
+== 2. Chọn món vào giỏ hàng ==
+KH -> FE : Thêm món, chọn số lượng, ghi chú
+FE -> FE : CartContext cập nhật giỏ hàng (localStorage)
+
+opt Khách nhập mã giảm giá
+  KH -> FE : Nhập mã voucher
+  FE -> FE : Gọi API kiểm tra voucher và tính tiền giảm
+end
+
+== 3. Gửi đơn hàng ==
+KH -> FE : Bấm "Đặt món"
+FE -> OrderCtrl : POST /api/customer/orders
+activate OrderCtrl
+OrderCtrl -> OrderSvc : createCustomerOrder(request, customerId)
+activate OrderSvc
+OrderSvc -> DB : SELECT restaurant_tables WHERE id = tableId
+DB --> OrderSvc : Bàn hợp lệ (AVAILABLE)
+OrderSvc -> DB : UPDATE restaurant_tables SET status = OCCUPIED
+OrderSvc -> OrderSvc : Sinh mã đơn ORD-{timestamp}-{random}
+OrderSvc -> DB : INSERT orders (status = PENDING)
+
+loop Mỗi món trong giỏ hàng
+  OrderSvc -> DB : SELECT menu_items WHERE id = menuItemId
+  alt Món đã dừng bán
+    OrderSvc --> OrderCtrl : Lỗi "Món đã tạm dừng bán"
+    OrderCtrl --> FE : 400 Bad Request
+    FE --> KH : Thông báo lỗi
+  else Món còn bán
+    OrderSvc -> DB : INSERT order_items (PENDING)
+  end
+end
+
+OrderSvc -> DB : UPDATE orders SET total_amount = ?
+OrderSvc --> OrderCtrl : OrderResponse(orderCode, totalAmount)
+deactivate OrderSvc
+OrderCtrl --> FE : 201 Created
+deactivate OrderCtrl
+FE --> KH : Thông báo "Đã gửi đơn tới bếp" + mã đơn
+
+== 4. Theo dõi đơn hàng ==
+loop Khách làm mới trang tra cứu
+  KH -> FE : Xem trạng thái đơn
+  FE -> OrderCtrl : GET /api/customer/orders/{orderCode}
+  OrderCtrl -> DB : SELECT orders, order_items
+  DB --> OrderCtrl : Trạng thái hiện tại
+  OrderCtrl --> FE : 200 OK (PENDING/PROCESSING/COMPLETED)
+  FE --> KH : Hiển thị trạng thái mới
+end
+
+@enduml

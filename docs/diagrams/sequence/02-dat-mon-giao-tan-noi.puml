@@ -1,0 +1,96 @@
+@startuml seq-02-dat-mon-giao-tan-noi
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC02: ĐẶT MÓN GIAO TẬN NƠI (DELIVERY)
+'  Tương ứng biểu đồ ca sử dụng: use-case/02-dat-mon-giao-tan-noi.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         165
+
+autonumber
+hide footbox
+
+actor       "Khách hàng"    as KH
+participant "Giao diện\nReact" as FE
+participant "OrderController" as OrderCtrl
+participant "OrderService"   as OrderSvc
+participant "CSDL MySQL"     as DB
+
+== 1. Chọn hình thức giao hàng ==
+KH -> FE : Chọn hình thức "Giao tận nơi"
+FE --> KH : Hiện form địa chỉ + số điện thoại
+
+== 2. Chọn món và nhập thông tin giao ==
+KH -> FE : Thêm món vào giỏ hàng
+FE -> OrderCtrl : GET /api/customer/menu
+OrderCtrl -> DB : SELECT menu_items
+DB --> OrderCtrl : Danh sách món
+OrderCtrl --> FE : 200 OK
+FE --> KH : Hiển thị giỏ hàng tạm tính
+
+KH -> FE : Nhập địa chỉ giao hàng, số điện thoại, ghi chú
+
+opt Khách áp dụng mã giảm giá
+  KH -> FE : Nhập mã voucher
+  FE -> FE : Kiểm tra voucher và trừ tiền giảm trên hóa đơn
+end
+
+== 3. Xác nhận đặt hàng ==
+KH -> FE : Bấm "Đặt hàng"
+FE -> OrderCtrl : POST /api/customer/orders\n(orderType = DELIVERY)
+activate OrderCtrl
+OrderCtrl -> OrderSvc : createCustomerOrder(request, customerId)
+activate OrderSvc
+
+alt Thiếu địa chỉ giao hàng
+  OrderSvc --> OrderCtrl : Lỗi "Vui lòng nhập địa chỉ giao hàng"
+  OrderCtrl --> FE : 400 Bad Request
+  FE --> KH : Hiển thị lỗi, yêu cầu nhập lại
+else Đủ thông tin
+  OrderSvc -> OrderSvc : Sinh mã đơn ORD-{timestamp}-{random}
+  OrderSvc -> DB : INSERT orders (DELIVERY, PENDING,\n delivery_address, contact_phone)
+  DB --> OrderSvc : order_id
+
+  loop Mỗi món trong giỏ hàng
+    OrderSvc -> DB : INSERT order_items
+    OrderSvc -> OrderSvc : Cộng dồn total_amount
+  end
+
+  OrderSvc -> DB : UPDATE orders SET total_amount = ?
+  OrderSvc --> OrderCtrl : OrderResponse(orderCode, totalAmount)
+  OrderCtrl --> FE : 201 Created
+  FE --> KH : Hiển thị mã đơn và trạng thái chờ xác nhận
+end
+deactivate OrderSvc
+deactivate OrderCtrl
+
+== 4. Nhân viên xác nhận và theo dõi đơn ==
+note over FE, OrderSvc
+  Nhân viên vào màn hình quản lý đơn,
+  đổi trạng thái PENDING -> PROCESSING -> COMPLETED.
+end note
+
+loop Khách làm mới trang tra cứu
+  KH -> FE : Nhập mã đơn để tra cứu
+  FE -> OrderCtrl : GET /api/customer/orders/{orderCode}
+  OrderCtrl -> DB : SELECT orders
+  DB --> OrderCtrl : Trạng thái đơn
+  OrderCtrl --> FE : 200 OK
+  FE --> KH : Hiển thị trạng thái đơn
+end
+
+@enduml

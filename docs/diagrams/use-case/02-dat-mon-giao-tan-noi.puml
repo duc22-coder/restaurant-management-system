@@ -1,0 +1,65 @@
+@startuml uc-02-dat-mon-giao-tan-noi
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC02: ĐẶT MÓN GIAO TẬN NƠI (DELIVERY)
+'  Tác nhân chính: Khách hàng        Tác nhân phụ: Nhân viên (điều phối đơn)
+'  Biểu đồ tuần tự tương ứng: sequence/02-dat-mon-giao-tan-noi.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Khách hàng" as KH
+actor "Nhân viên"  as NV
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Đặt món giao tận nơi"     as UC_DatGiao
+    usecase "Chọn món từ thực đơn"     as UC_ChonMon
+    usecase "Quản lý giỏ hàng"         as UC_GioHang
+    usecase "Nhập địa chỉ giao hàng"   as UC_NhapDiaChi
+    usecase "Xác nhận đơn hàng"        as UC_XacNhanDon
+    usecase "Theo dõi trạng thái đơn"  as UC_TheoDoi
+
+    usecase "Đặt món mang về (Pickup)" as UC_Pickup
+    usecase "Áp dụng voucher"          as UC_Voucher
+    usecase "Ghi chú món ăn"           as UC_GhiChu
+    usecase "Hủy đơn hàng"             as UC_HuyDon
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+KH - UC_DatGiao
+KH - UC_TheoDoi
+NV - UC_XacNhanDon
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_DatGiao ..> UC_ChonMon    : <<include>>
+UC_DatGiao ..> UC_GioHang    : <<include>>
+UC_DatGiao ..> UC_NhapDiaChi : <<include>>
+UC_DatGiao ..> UC_XacNhanDon : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_Pickup  ..> UC_DatGiao  : <<extend>>
+UC_Voucher ..> UC_GioHang  : <<extend>>
+UC_GhiChu  ..> UC_GioHang  : <<extend>>
+UC_HuyDon  ..> UC_DatGiao  : <<extend>>
+
+note bottom of UC_DatGiao
+  Tiền điều kiện: KHÔNG cần chọn bàn.
+  Bắt buộc nhập địa chỉ giao hàng và số điện thoại liên hệ.
+end note
+
+@enduml

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Biểu đồ thiết kế — Hệ thống Quản lý Nhà hàng</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: "DejaVu Sans", system-ui, Arial, sans-serif; margin: 0; background: #F3F4F6; color:#111827; }
+  header { background: #1E3A8A; color: #fff; padding: 22px 28px; }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header p { margin: 0; opacity: .85; font-size: 14px; }
+  main { padding: 20px 24px 60px; max-width: 1500px; margin: 0 auto; }
+  h2 { font-size: 18px; color:#1E3A8A; margin: 34px 0 12px; border-bottom: 2px solid #DBEAFE; padding-bottom: 6px; }
+  .grid { display: grid; gap: 18px; }
+  figure { background:#fff; border:1px solid #E5E7EB; border-radius: 10px; margin:0; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  figcaption { font-weight: 600; font-size: 14px; color:#1E3A8A; margin-bottom: 8px; }
+  figure img { width: 100%; height: auto; border: 1px dashed #E5E7EB; border-radius: 6px; background:#fff; }
+  a.src { display:inline-block; margin-top:8px; font-size:12px; color:#2563EB; text-decoration:none; }
+  a.src:hover { text-decoration: underline; }
+</style></head><body>
+<header>
+  <h1>📐 Biểu đồ thiết kế — Hệ thống Quản lý Nhà hàng</h1>
+  <p>Chuẩn UML 2.5 · mỗi biểu đồ ca sử dụng đều có 1 biểu đồ tuần tự tương ứng · nhấn vào ảnh để xem kích thước đầy đủ</p>
+</header>
+<main>
+  <h2>1. Biểu đồ ca sử dụng (Use Case Diagram)</h2>
+  <div class="grid">
+  <figure>
+    <figcaption>SƠ ĐỒ CA SỬ DỤNG TỔNG QUAN</figcaption>
+    <a href="use-case/00-use-case-tong-quan.svg" target="_blank">
+      <img src="use-case/00-use-case-tong-quan.svg" alt="00-use-case-tong-quan" loading="lazy">
+    </a>
+    <a class="src" href="use-case/00-use-case-tong-quan.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC01 — ĐẶT MÓN TẠI BÀN</figcaption>
+    <a href="use-case/01-dat-mon-tai-ban.svg" target="_blank">
+      <img src="use-case/01-dat-mon-tai-ban.svg" alt="01-dat-mon-tai-ban" loading="lazy">
+    </a>
+    <a class="src" href="use-case/01-dat-mon-tai-ban.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC02 — ĐẶT MÓN GIAO TẬN NƠI</figcaption>
+    <a href="use-case/02-dat-mon-giao-tan-noi.svg" target="_blank">
+      <img src="use-case/02-dat-mon-giao-tan-noi.svg" alt="02-dat-mon-giao-tan-noi" loading="lazy">
+    </a>
+    <a class="src" href="use-case/02-dat-mon-giao-tan-noi.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC03 — XỬ LÝ ĐƠN HÀNG TẠI BẾP</figcaption>
+    <a href="use-case/03-xu-ly-don-hang-tai-bep.svg" target="_blank">
+      <img src="use-case/03-xu-ly-don-hang-tai-bep.svg" alt="03-xu-ly-don-hang-tai-bep" loading="lazy">
+    </a>
+    <a class="src" href="use-case/03-xu-ly-don-hang-tai-bep.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC04 — THANH TOÁN & GIẢI PHÓNG BÀN</figcaption>
+    <a href="use-case/04-thanh-toan-va-giai-phong-ban.svg" target="_blank">
+      <img src="use-case/04-thanh-toan-va-giai-phong-ban.svg" alt="04-thanh-toan-va-giai-phong-ban" loading="lazy">
+    </a>
+    <a class="src" href="use-case/04-thanh-toan-va-giai-phong-ban.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC05 — QUẢN LÝ NHẬP KHO NGUYÊN LIỆU</figcaption>
+    <a href="use-case/05-quan-ly-nhap-kho-nguyen-lieu.svg" target="_blank">
+      <img src="use-case/05-quan-ly-nhap-kho-nguyen-lieu.svg" alt="05-quan-ly-nhap-kho-nguyen-lieu" loading="lazy">
+    </a>
+    <a class="src" href="use-case/05-quan-ly-nhap-kho-nguyen-lieu.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC06 — QUẢN LÝ THỰC ĐƠN & ĐỊNH LƯỢNG</figcaption>
+    <a href="use-case/06-quan-ly-thuc-don-va-dinh-luong.svg" target="_blank">
+      <img src="use-case/06-quan-ly-thuc-don-va-dinh-luong.svg" alt="06-quan-ly-thuc-don-va-dinh-luong" loading="lazy">
+    </a>
+    <a class="src" href="use-case/06-quan-ly-thuc-don-va-dinh-luong.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC07 — ĐĂNG NHẬP / ĐĂNG KÝ</figcaption>
+    <a href="use-case/07-dang-nhap-va-dang-ky.svg" target="_blank">
+      <img src="use-case/07-dang-nhap-va-dang-ky.svg" alt="07-dang-nhap-va-dang-ky" loading="lazy">
+    </a>
+    <a class="src" href="use-case/07-dang-nhap-va-dang-ky.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC08 — XEM BÁO CÁO - THỐNG KÊ</figcaption>
+    <a href="use-case/08-xem-bao-cao-thong-ke.svg" target="_blank">
+      <img src="use-case/08-xem-bao-cao-thong-ke.svg" alt="08-xem-bao-cao-thong-ke" loading="lazy">
+    </a>
+    <a class="src" href="use-case/08-xem-bao-cao-thong-ke.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure></div>
+  <h2>2. Biểu đồ tuần tự (Sequence Diagram)</h2>
+  <div class="grid">
+  <figure>
+    <figcaption>UC01 — ĐẶT MÓN TẠI BÀN — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/01-dat-mon-tai-ban.svg" target="_blank">
+      <img src="sequence/01-dat-mon-tai-ban.svg" alt="01-dat-mon-tai-ban" loading="lazy">
+    </a>
+    <a class="src" href="sequence/01-dat-mon-tai-ban.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC02 — ĐẶT MÓN GIAO TẬN NƠI — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/02-dat-mon-giao-tan-noi.svg" target="_blank">
+      <img src="sequence/02-dat-mon-giao-tan-noi.svg" alt="02-dat-mon-giao-tan-noi" loading="lazy">
+    </a>
+    <a class="src" href="sequence/02-dat-mon-giao-tan-noi.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC03 — XỬ LÝ ĐƠN HÀNG TẠI BẾP — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/03-xu-ly-don-hang-tai-bep.svg" target="_blank">
+      <img src="sequence/03-xu-ly-don-hang-tai-bep.svg" alt="03-xu-ly-don-hang-tai-bep" loading="lazy">
+    </a>
+    <a class="src" href="sequence/03-xu-ly-don-hang-tai-bep.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC04 — THANH TOÁN & GIẢI PHÓNG BÀN — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/04-thanh-toan-va-giai-phong-ban.svg" target="_blank">
+      <img src="sequence/04-thanh-toan-va-giai-phong-ban.svg" alt="04-thanh-toan-va-giai-phong-ban" loading="lazy">
+    </a>
+    <a class="src" href="sequence/04-thanh-toan-va-giai-phong-ban.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC05 — QUẢN LÝ NHẬP KHO NGUYÊN LIỆU — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/05-quan-ly-nhap-kho-nguyen-lieu.svg" target="_blank">
+      <img src="sequence/05-quan-ly-nhap-kho-nguyen-lieu.svg" alt="05-quan-ly-nhap-kho-nguyen-lieu" loading="lazy">
+    </a>
+    <a class="src" href="sequence/05-quan-ly-nhap-kho-nguyen-lieu.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC06 — QUẢN LÝ THỰC ĐƠN & ĐỊNH LƯỢNG — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/06-quan-ly-thuc-don-va-dinh-luong.svg" target="_blank">
+      <img src="sequence/06-quan-ly-thuc-don-va-dinh-luong.svg" alt="06-quan-ly-thuc-don-va-dinh-luong" loading="lazy">
+    </a>
+    <a class="src" href="sequence/06-quan-ly-thuc-don-va-dinh-luong.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC07 — ĐĂNG NHẬP / ĐĂNG KÝ — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/07-dang-nhap-va-dang-ky.svg" target="_blank">
+      <img src="sequence/07-dang-nhap-va-dang-ky.svg" alt="07-dang-nhap-va-dang-ky" loading="lazy">
+    </a>
+    <a class="src" href="sequence/07-dang-nhap-va-dang-ky.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure>
+  <figure>
+    <figcaption>UC08 — XEM BÁO CÁO - THỐNG KÊ — Biểu đồ tuần tự</figcaption>
+    <a href="sequence/08-xem-bao-cao-thong-ke.svg" target="_blank">
+      <img src="sequence/08-xem-bao-cao-thong-ke.svg" alt="08-xem-bao-cao-thong-ke" loading="lazy">
+    </a>
+    <a class="src" href="sequence/08-xem-bao-cao-thong-ke.puml" target="_blank">Mã nguồn PlantUML</a>
+  </figure></div>
+</main></body></html>

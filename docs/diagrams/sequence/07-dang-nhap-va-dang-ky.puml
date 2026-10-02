@@ -1,0 +1,114 @@
+@startuml seq-07-dang-nhap-va-dang-ky
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC07: ĐĂNG NHẬP / ĐĂNG KÝ TÀI KHOẢN
+'  Tương ứng biểu đồ ca sử dụng: use-case/07-dang-nhap-va-dang-ky.puml
+'  Nghiệp vụ: xác thực bằng Spring Security + cấp JWT, phân quyền theo vai trò.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         170
+
+autonumber
+hide footbox
+
+actor       "Người dùng\n(KH / NV / QTV)" as U
+participant "Giao diện\nReact"  as FE
+participant "AuthController"     as Ctrl
+participant "AuthService"        as Svc
+participant "JwtTokenProvider"   as JWT
+participant "CSDL MySQL"         as DB
+
+== 1. Đăng nhập ==
+U  -> FE : Nhập tên đăng nhập và mật khẩu
+FE -> Ctrl : POST /api/auth/login
+activate Ctrl
+Ctrl -> Svc : login(LoginRequest)
+activate Svc
+Svc -> DB : SELECT users WHERE username = ?
+DB --> Svc : Thông tin tài khoản (mật khẩu đã mã hóa BCrypt)
+Svc -> Svc : authenticationManager.authenticate(...)
+
+alt Sai tên đăng nhập hoặc mật khẩu
+  Svc --> Ctrl : BadCredentialsException
+  Ctrl --> FE : 401 Unauthorized
+  FE --> U : Thông báo "Sai tài khoản hoặc mật khẩu"
+else Xác thực thành công
+  Svc -> JWT : generateToken(authentication)
+  JWT --> Svc : Chuỗi JWT (chứa username, vai trò)
+  Svc -> DB : SELECT users (lấy thông tin trả về)
+  Svc --> Ctrl : AuthResponse(accessToken, role, fullName)
+  Ctrl --> FE : 200 OK
+  FE -> FE : Lưu token vào localStorage
+  FE --> U : Điều hướng theo vai trò\n(ADMIN / STAFF / CUSTOMER)
+end
+deactivate Svc
+deactivate Ctrl
+
+== 2. Đăng ký tài khoản khách hàng ==
+U  -> FE : Nhập thông tin đăng ký
+FE -> Ctrl : POST /api/auth/register
+activate Ctrl
+Ctrl -> Svc : register(RegisterRequest)
+activate Svc
+Svc -> DB : SELECT users WHERE username = ?
+
+alt Tên đăng nhập đã tồn tại
+  Svc --> Ctrl : Lỗi "Tên đăng nhập đã tồn tại"
+  Ctrl --> FE : 400 Bad Request
+  FE --> U : Hiển thị lỗi, yêu cầu đổi tên đăng nhập
+else Hợp lệ
+  Svc -> Svc : Mã hóa mật khẩu bằng BCrypt
+  Svc -> DB : INSERT users (role = CUSTOMER, ACTIVE)
+  Svc -> JWT : generateToken(authentication)
+  JWT --> Svc : Chuỗi JWT
+  Svc --> Ctrl : AuthResponse(accessToken)  ' đăng ký xong tự động đăng nhập
+  Ctrl --> FE : 201 Created
+  FE --> U : Đăng ký thành công, vào trang thực đơn
+end
+deactivate Svc
+deactivate Ctrl
+
+== 3. Sử dụng token cho các request sau ==
+U  -> FE : Thao tác nghiệp vụ (đặt món, xem báo cáo...)
+FE -> Ctrl : Request kèm header Authorization: Bearer <JWT>
+note right of Ctrl
+  JwtAuthenticationFilter kiểm tra token,
+  nạp UserPrincipal vào SecurityContext.
+  Request không hợp lệ trả về 401/403.
+end note
+Ctrl --> FE : Dữ liệu theo đúng quyền của vai trò
+
+== 4. Xem và cập nhật thông tin cá nhân ==
+U  -> FE : Mở trang tài khoản
+FE -> Ctrl : GET /api/auth/me
+Ctrl -> DB : SELECT users WHERE username = ?
+DB --> Ctrl : Thông tin người dùng
+Ctrl --> FE : 200 OK
+U  -> FE : Sửa hồ sơ và lưu
+FE -> Ctrl : PUT /api/customer/profile
+Ctrl -> Svc : updateOwnProfile(id, request)
+Svc -> DB : UPDATE users
+Svc --> FE : 200 OK
+FE --> U : Thông báo cập nhật thành công
+
+opt Đăng xuất
+  U -> FE : Bấm "Đăng xuất"
+  FE -> FE : Xóa token khỏi localStorage
+  FE --> U : Quay về trang đăng nhập
+end
+
+@enduml

@@ -1,0 +1,110 @@
+@startuml seq-03-xu-ly-don-hang-tai-bep
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC03: XỬ LÝ ĐƠN HÀNG TẠI BẾP
+'  Tương ứng biểu đồ ca sử dụng: use-case/03-xu-ly-don-hang-tai-bep.puml
+'  Nghiệp vụ: cập nhật trạng thái món, tự động trừ kho theo công thức TPSP.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         180
+
+autonumber
+hide footbox
+
+actor       "Nhân viên\n(bếp)"   as NV
+participant "Giao diện\nStaff"  as FE
+participant "StaffOrder\nController" as Ctrl
+participant "OrderService"       as Svc
+participant "CSDL MySQL"         as DB
+
+== 1. Xem danh sách đơn đang chờ ==
+NV -> FE : Mở màn hình bếp
+FE -> Ctrl : GET /api/staff/orders
+activate Ctrl
+Ctrl -> Svc : getAllActiveOrders()
+activate Svc
+Svc -> DB : SELECT orders (bỏ COMPLETED, CANCELLED)
+DB --> Svc : Danh sách đơn đang xử lý
+Svc --> Ctrl : List<OrderResponse>
+deactivate Svc
+Ctrl --> FE : 200 OK
+deactivate Ctrl
+FE --> NV : Hiển thị các đơn theo thứ tự thời gian
+
+== 2. Nhận chế biến một món ==
+NV -> FE : Bấm "Bắt đầu chế biến" trên món
+FE -> Ctrl : PATCH /api/staff/orders/items/{id}/status?status=PREPARING
+activate Ctrl
+Ctrl -> Svc : updateOrderItemStatus(itemId, PREPARING)
+activate Svc
+Svc -> DB : UPDATE order_items SET status = PREPARING
+DB --> Svc : OK
+
+alt Đơn đang ở trạng thái PENDING
+  Svc -> DB : UPDATE orders SET status = PROCESSING
+  DB --> Svc : OK
+end
+
+Svc -> DB : SELECT product_recipes WHERE product_id = ?
+DB --> Svc : Danh sách nguyên liệu định lượng (TPSP)
+
+loop Mỗi nguyên liệu trong công thức
+  Svc -> Svc : needed = recipe.quantity x item.quantity
+  Svc -> DB : UPDATE product_details SET stock = stock - needed
+  opt Tồn kho <= 0
+    Svc -> DB : UPDATE product_details SET status = OUT_OF_STOCK
+  end
+end
+
+Svc --> Ctrl : OrderItemResponse
+deactivate Svc
+Ctrl --> FE : 200 OK
+deactivate Ctrl
+FE --> NV : Món chuyển sang "Đang chế biến"
+
+== 3. Hoàn tất món và cập nhật đơn ==
+loop Lặp cho tới khi món xong
+  NV -> FE : Bấm "Đã xong" (READY) / "Đã phục vụ" (SERVED)
+  FE -> Ctrl : PATCH .../items/{id}/status?status=READY|SERVED
+  Ctrl -> Svc : updateOrderItemStatus(...)
+  Svc -> DB : UPDATE order_items
+  Svc --> Ctrl : OrderItemResponse
+  Ctrl --> FE : 200 OK
+end
+
+alt Hủy món hoặc hủy đơn
+  NV -> FE : Bấm "Hủy"
+  FE -> Ctrl : PATCH /api/staff/orders/{id}/status?status=CANCELLED
+  Ctrl -> Svc : updateOrderStatus(orderId, CANCELLED)
+  Svc -> DB : UPDATE orders SET status = CANCELLED
+  note right of Svc
+    Nếu bàn không còn đơn đang xử lý,
+    hệ thống tự chuyển bàn về AVAILABLE.
+  end note
+  Svc --> Ctrl : OrderResponse
+  Ctrl --> FE : 200 OK
+end
+
+== 4. Khách theo dõi trạng thái ==
+loop Khách tra cứu đơn
+  FE -> Ctrl : GET /api/customer/orders/{orderCode}
+  Ctrl -> DB : SELECT orders, order_items
+  DB --> Ctrl : Trạng thái mới nhất
+  Ctrl --> FE : 200 OK
+end
+
+@enduml

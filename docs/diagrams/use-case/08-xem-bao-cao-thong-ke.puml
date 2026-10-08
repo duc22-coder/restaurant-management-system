@@ -1,0 +1,61 @@
+@startuml uc-08-xem-bao-cao-thong-ke
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC08: XEM BÁO CÁO - THỐNG KÊ
+'  Tác nhân chính: Quản trị viên
+'  Biểu đồ tuần tự tương ứng: sequence/08-xem-bao-cao-thong-ke.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Quản trị viên" as QTV
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Xem báo cáo - thống kê"          as UC_BaoCao
+    usecase "Xem tổng doanh thu"              as UC_DoanhThu
+    usecase "Xem tổng số đơn hàng"            as UC_SoDon
+    usecase "Xem tỷ lệ đơn hoàn thành"        as UC_TyLe
+    usecase "Xem số bàn đang phục vụ"         as UC_BanDangPhucVu
+    usecase "Xem top món bán chạy"            as UC_TopMon
+    usecase "Xem doanh thu theo phương thức thanh toán" as UC_TheoPhuongThuc
+
+    usecase "Lọc theo khoảng thời gian" as UC_LocThoiGian
+    usecase "Kết xuất báo cáo"          as UC_KetXuat
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+QTV - UC_BaoCao
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_BaoCao ..> UC_DoanhThu         : <<include>>
+UC_BaoCao ..> UC_SoDon            : <<include>>
+UC_BaoCao ..> UC_TyLe             : <<include>>
+UC_BaoCao ..> UC_BanDangPhucVu    : <<include>>
+UC_BaoCao ..> UC_TopMon           : <<include>>
+UC_BaoCao ..> UC_TheoPhuongThuc   : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_LocThoiGian ..> UC_BaoCao : <<extend>>
+UC_KetXuat     ..> UC_BaoCao : <<extend>>
+
+note bottom of UC_BaoCao
+  Dữ liệu lấy từ API GET /api/admin/analytics/dashboard,
+  giao diện tự động làm mới (polling) mỗi 15 giây.
+end note
+
+@enduml

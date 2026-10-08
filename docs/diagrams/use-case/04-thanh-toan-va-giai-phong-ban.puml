@@ -1,0 +1,65 @@
+@startuml uc-04-thanh-toan-va-giai-phong-ban
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC04: THANH TOÁN ĐƠN HÀNG VÀ GIẢI PHÓNG BÀN
+'  Tác nhân chính: Nhân viên (thu ngân)   Tác nhân phụ: Khách hàng
+'  Biểu đồ tuần tự tương ứng: sequence/04-thanh-toan-va-giai-phong-ban.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Nhân viên"  as NV
+actor "Khách hàng" as KH
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Yêu cầu tính tiền"                as UC_YeuCauTT
+    usecase "Thanh toán đơn hàng"              as UC_ThanhToan
+    usecase "Xem hóa đơn tạm tính"             as UC_XemHoaDon
+    usecase "Ghi nhận thanh toán"              as UC_GhiNhanTT
+    usecase "Giải phóng bàn"                   as UC_GiaiPhong
+    usecase "Xuất hóa đơn cho khách"           as UC_XuatHD
+
+    usecase "Áp dụng voucher"                  as UC_Voucher
+    usecase "Thanh toán tiền mặt"              as UC_TienMat
+    usecase "Thanh toán trực tuyến (VietQR)"   as UC_VietQR
+    usecase "Giảm giá thủ công"                as UC_GiamThuCong
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+NV - UC_ThanhToan
+KH - UC_YeuCauTT
+KH - UC_VietQR
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_ThanhToan ..> UC_XemHoaDon  : <<include>>
+UC_ThanhToan ..> UC_GhiNhanTT  : <<include>>
+UC_ThanhToan ..> UC_GiaiPhong  : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_Voucher     ..> UC_ThanhToan : <<extend>>
+UC_GiamThuCong ..> UC_ThanhToan : <<extend>>
+UC_TienMat     ..> UC_ThanhToan : <<extend>>
+UC_VietQR      ..> UC_ThanhToan : <<extend>>
+UC_XuatHD      ..> UC_ThanhToan : <<extend>>
+
+note bottom of UC_ThanhToan
+  Hậu điều kiện: Payment = COMPLETED, Order = COMPLETED.
+  Nếu bàn không còn đơn nào đang xử lý thì chuyển bàn về AVAILABLE.
+end note
+
+@enduml

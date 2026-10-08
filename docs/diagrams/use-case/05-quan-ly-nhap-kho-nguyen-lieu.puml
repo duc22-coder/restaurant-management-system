@@ -1,0 +1,63 @@
+@startuml uc-05-quan-ly-nhap-kho-nguyen-lieu
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC05: QUẢN LÝ NHẬP KHO NGUYÊN LIỆU
+'  Tác nhân chính: Quản trị viên       Tác nhân phụ: Nhân viên (theo dõi tồn kho)
+'  Biểu đồ tuần tự tương ứng: sequence/05-quan-ly-nhap-kho-nguyen-lieu.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Quản trị viên" as QTV
+actor "Nhân viên"     as NV
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Lập phiếu nhập kho (ĐNP)"      as UC_LapPhieu
+    usecase "Chọn nguyên liệu trong kho"    as UC_ChonNguyenLieu
+    usecase "Nhập số lượng và đơn giá"      as UC_NhapSoLuong
+    usecase "Duyệt phiếu nhập kho"          as UC_DuyetPhieu
+    usecase "Cộng tồn kho nguyên liệu"      as UC_CongTonKho
+    usecase "Quản lý kho nguyên liệu (SPCT)" as UC_QLKho
+    usecase "Cảnh báo nguyên liệu sắp hết"  as UC_CanhBao
+
+    usecase "Hủy phiếu nhập kho"  as UC_HuyPhieu
+    usecase "Cập nhật giá vốn"    as UC_GiaVon
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+QTV - UC_LapPhieu
+QTV - UC_DuyetPhieu
+QTV - UC_QLKho
+NV - UC_CanhBao
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_LapPhieu   ..> UC_ChonNguyenLieu : <<include>>
+UC_LapPhieu   ..> UC_NhapSoLuong    : <<include>>
+UC_DuyetPhieu ..> UC_CongTonKho     : <<include>>
+UC_CongTonKho ..> UC_GiaVon         : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_HuyPhieu ..> UC_LapPhieu : <<extend>>
+UC_CanhBao  ..> UC_QLKho    : <<extend>>
+
+note bottom of UC_DuyetPhieu
+  Chỉ phiếu ở trạng thái PENDING mới được duyệt.
+  Phiếu đã duyệt (COMPLETED) không thể hủy.
+end note
+
+@enduml

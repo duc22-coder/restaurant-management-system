@@ -1,0 +1,61 @@
+@startuml uc-06-quan-ly-thuc-don-va-dinh-luong
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC06: QUẢN LÝ THỰC ĐƠN VÀ ĐỊNH LƯỢNG CÔNG THỨC (TPSP)
+'  Tác nhân chính: Quản trị viên
+'  Biểu đồ tuần tự tương ứng: sequence/06-quan-ly-thuc-don-va-dinh-luong.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Quản trị viên" as QTV
+actor "Khách hàng"    as KH
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Quản lý món ăn (thực đơn)"      as UC_QLMon
+    usecase "Thêm / Sửa / Xóa món ăn"        as UC_CRUDMon
+    usecase "Cập nhật giá và hình ảnh món"   as UC_GiaAnh
+    usecase "Đổi trạng thái còn món / hết món" as UC_TrangThaiMon
+    usecase "Quản lý danh mục món"           as UC_QLDanhMuc
+    usecase "Thiết lập định lượng công thức (TPSP)" as UC_CongThuc
+    usecase "Chọn nguyên liệu từ kho (SPCT)" as UC_ChonNguyenLieu
+    usecase "Xem thực đơn"                   as UC_XemThucDon
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+QTV - UC_QLMon
+QTV - UC_QLDanhMuc
+QTV - UC_CongThuc
+KH  --> UC_XemThucDon
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_QLMon    ..> UC_CRUDMon        : <<include>>
+UC_QLMon    ..> UC_TrangThaiMon   : <<include>>
+UC_CongThuc ..> UC_ChonNguyenLieu : <<include>>
+UC_CongThuc ..> UC_QLMon          : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_GiaAnh  ..> UC_QLMon : <<extend>>
+UC_XemThucDon ..> UC_QLMon : <<extend>>
+
+note bottom of UC_CongThuc
+  Mỗi dòng công thức = 1 nguyên liệu (SPCT) + số lượng tiêu hao cho 1 suất.
+  Dữ liệu này được dùng để tự trừ kho khi bếp chế biến.
+end note
+
+@enduml

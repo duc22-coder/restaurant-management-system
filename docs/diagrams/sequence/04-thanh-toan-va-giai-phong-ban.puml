@@ -1,0 +1,109 @@
+@startuml seq-04-thanh-toan-va-giai-phong-ban
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC04: THANH TOÁN ĐƠN HÀNG VÀ GIẢI PHÓNG BÀN
+'  Tương ứng biểu đồ ca sử dụng: use-case/04-thanh-toan-va-giai-phong-ban.puml
+'  Nghiệp vụ: thu ngân xác nhận thanh toán, áp voucher, giải phóng bàn.
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         175
+
+autonumber
+hide footbox
+
+actor       "Khách hàng"   as KH
+actor       "Nhân viên\n(thu ngân)" as NV
+participant "Giao diện\nStaff" as FE
+participant "StaffPayment\nController" as Ctrl
+participant "PaymentService"  as Svc
+participant "CSDL MySQL"      as DB
+
+== 1. Khách yêu cầu tính tiền ==
+KH -> FE : Bấm "Gọi tính tiền"
+FE -> Ctrl : POST /api/customer/payment/request?tableId=1
+Ctrl -> Svc : requestCustomerPayment(tableId)
+Svc -> DB : UPDATE restaurant_tables SET status = PAYING
+Svc --> FE : "Đã gửi yêu cầu thanh toán"
+FE --> KH : Thông báo nhân viên sẽ tới bàn
+
+== 2. Nhân viên mở hóa đơn ==
+NV -> FE : Chọn bàn "Yêu cầu tính tiền"
+FE -> Ctrl : GET /api/staff/payment/receipt/{orderId}
+activate Ctrl
+Ctrl -> Svc : getPaymentByOrderId(orderId)
+activate Svc
+Svc -> DB : SELECT orders, order_items, payments
+DB --> Svc : Chi tiết đơn và hóa đơn (nếu có)
+Svc --> Ctrl : PaymentResponse (tạm tính)
+deactivate Svc
+Ctrl --> FE : 200 OK
+deactivate Ctrl
+FE --> NV : Hiển thị hóa đơn tạm tính
+
+== 3. Áp dụng giảm giá (nếu có) ==
+alt Khách có mã voucher
+  NV -> FE : Nhập mã voucher
+  FE -> Ctrl : GET /api/staff/payment/validate-voucher?code=&orderAmount=
+  Ctrl -> Svc : validateVoucher(code, orderAmount)
+  Svc -> DB : SELECT vouchers (kiểm tra hạn, số lượt)
+  DB --> Svc : Voucher hợp lệ
+  Svc --> Ctrl : discountAmount
+  Ctrl --> FE : 200 OK
+  FE --> NV : Hiển thị số tiền được giảm
+else Nhân viên giảm giá thủ công
+  NV -> FE : Nhập số tiền giảm
+end
+
+== 4. Xác nhận thanh toán ==
+KH -> NV : Thanh toán (tiền mặt hoặc xem mã QR chuyển khoản)
+NV -> FE : Chọn phương thức và bấm "Xác nhận thanh toán"
+FE -> Ctrl : POST /api/staff/payment/process\n(PaymentRequest)
+activate Ctrl
+Ctrl -> Svc : processStaffPayment(request)
+activate Svc
+
+opt Phương thức chuyển khoản (VietQR)
+  note right of Svc
+    Nhân viên có thể lấy mã QR động:
+    GET /api/staff/payment/qr/{orderId}
+    Hệ thống sinh URL ảnh VietQR theo
+    đúng số tiền và nội dung là mã đơn.
+  end note
+end
+
+alt Voucher không hợp lệ / đã hết lượt
+  Svc --> Ctrl : Lỗi kiểm tra voucher
+  Ctrl --> FE : 400 Bad Request
+  FE --> NV : Thông báo lỗi, yêu cầu nhập lại
+else Hợp lệ
+  Svc -> Svc : finalAmount = total - discount
+  Svc -> DB : INSERT payments (COMPLETED, paid_at)
+  Svc -> DB : UPDATE orders SET status = COMPLETED
+  Svc -> DB : SELECT orders đang xử lý của bàn
+  DB --> Svc : Danh sách đơn còn lại
+  alt Bàn không còn đơn nào đang xử lý
+    Svc -> DB : UPDATE restaurant_tables SET status = AVAILABLE
+  end
+  Svc --> Ctrl : PaymentResponse (hóa đơn)
+  Ctrl --> FE : 200 OK
+  FE --> NV : In / xuất hóa đơn cho khách
+  FE --> KH : Thông báo "Thanh toán thành công"
+end
+deactivate Svc
+deactivate Ctrl
+
+@enduml

@@ -1,0 +1,59 @@
+@startuml uc-03-xu-ly-don-hang-tai-bep
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC03: XỬ LÝ ĐƠN HÀNG TẠI BẾP
+'  Tác nhân chính: Nhân viên (bếp)     Tác nhân phụ: Khách hàng (theo dõi)
+'  Biểu đồ tuần tự tương ứng: sequence/03-xu-ly-don-hang-tai-bep.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Nhân viên"  as NV
+actor "Khách hàng" as KH
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Xem danh sách đơn đang chờ"   as UC_XemDon
+    usecase "Cập nhật trạng thái món ăn"   as UC_CapNhatMon
+    usecase "Cập nhật trạng thái đơn hàng" as UC_CapNhatDon
+    usecase "Trừ tồn kho theo công thức (TPSP)" as UC_TruKho
+    usecase "Theo dõi trạng thái đơn hàng" as UC_TheoDoi
+
+    usecase "In phiếu chế biến"  as UC_InPhieu
+    usecase "Hủy món / Hủy đơn"  as UC_HuyDon
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+NV - UC_XemDon
+NV - UC_CapNhatMon
+NV - UC_CapNhatDon
+KH - UC_TheoDoi
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_CapNhatMon ..> UC_CapNhatDon : <<include>>
+UC_CapNhatMon ..> UC_TruKho     : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_InPhieu ..> UC_XemDon      : <<extend>>
+UC_HuyDon  ..> UC_CapNhatDon  : <<extend>>
+
+note bottom of UC_CapNhatMon
+  Luồng trạng thái món: PENDING -> PREPARING -> READY -> SERVED.
+  Khi món chuyển sang PREPARING, đơn tự chuyển PENDING -> PROCESSING.
+end note
+
+@enduml

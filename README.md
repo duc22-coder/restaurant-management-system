@@ -1,4 +1,4 @@
-﻿# 🍽️ Restaurant Management System
+# 🍽️ Restaurant Management System
 
 <div align="center">
 
@@ -19,6 +19,7 @@
 ## 📌 Mục Lục
 - [Công Nghệ Sử Dụng](#️-công-nghệ-sử-dụng)
 - [Tính Năng Chính](#-tính-năng-chính)
+- [Biểu Đồ Thiết Kế (Use Case & Sequence)](#-biểu-đồ-thiết-kế-use-case--sequence)
 - [Sơ Đồ ERD](#-sơ-đồ-thực-thể---liên-kết-erd)
 - [Tài Khoản Mặc Định](#-tài-khoản-mặc-định)
 - [Hướng Dẫn Khởi Chạy](#-hướng-dẫn-khởi-chạy)
@@ -75,6 +76,27 @@
 | 🚚 Nhập hàng (ĐNP) | Lập phiếu nhập kho, duyệt nhập → tự động cộng tồn kho nguyên liệu |
 | ⚖️ Định lượng công thức (TPSP) | Thiết lập nguyên liệu tiêu hao cho từng món ăn → hệ thống tự trừ kho khi nấu |
 | Quản lý đơn hàng | Xem toàn bộ lịch sử đơn, lọc theo trạng thái và khoảng ngày |
+
+---
+
+## 📐 Biểu Đồ Thiết Kế (Use Case & Sequence)
+
+Toàn bộ biểu đồ được vẽ theo chuẩn **UML 2.5**, bám sát mã nguồn thực tế — **mỗi biểu đồ ca sử dụng đều có 1 biểu đồ tuần tự tương ứng**:
+
+| # | Biểu đồ ca sử dụng (Use Case) | Biểu đồ tuần tự (Sequence) |
+| :-: | :--- | :--- |
+| 00 | [Tổng quan hệ thống](docs/diagrams/use-case/00-use-case-tong-quan.puml) | — |
+| 01 | [Đặt món tại bàn (quét QR)](docs/diagrams/use-case/01-dat-mon-tai-ban.puml) | [Sequence 01](docs/diagrams/sequence/01-dat-mon-tai-ban.puml) |
+| 02 | [Đặt món giao tận nơi](docs/diagrams/use-case/02-dat-mon-giao-tan-noi.puml) | [Sequence 02](docs/diagrams/sequence/02-dat-mon-giao-tan-noi.puml) |
+| 03 | [Xử lý đơn hàng tại bếp](docs/diagrams/use-case/03-xu-ly-don-hang-tai-bep.puml) | [Sequence 03](docs/diagrams/sequence/03-xu-ly-don-hang-tai-bep.puml) |
+| 04 | [Thanh toán & giải phóng bàn](docs/diagrams/use-case/04-thanh-toan-va-giai-phong-ban.puml) | [Sequence 04](docs/diagrams/sequence/04-thanh-toan-va-giai-phong-ban.puml) |
+| 05 | [Quản lý nhập kho nguyên liệu](docs/diagrams/use-case/05-quan-ly-nhap-kho-nguyen-lieu.puml) | [Sequence 05](docs/diagrams/sequence/05-quan-ly-nhap-kho-nguyen-lieu.puml) |
+| 06 | [Quản lý thực đơn & định lượng](docs/diagrams/use-case/06-quan-ly-thuc-don-va-dinh-luong.puml) | [Sequence 06](docs/diagrams/sequence/06-quan-ly-thuc-don-va-dinh-luong.puml) |
+| 07 | [Đăng nhập / Đăng ký](docs/diagrams/use-case/07-dang-nhap-va-dang-ky.puml) | [Sequence 07](docs/diagrams/sequence/07-dang-nhap-va-dang-ky.puml) |
+| 08 | [Xem báo cáo - thống kê](docs/diagrams/use-case/08-xem-bao-cao-thong-ke.puml) | [Sequence 08](docs/diagrams/sequence/08-xem-bao-cao-thong-ke.puml) |
+
+> 📖 Xem [docs/diagrams/README.md](docs/diagrams/README.md) để biết **quy ước vẽ chuẩn**, cách chỉnh sửa và kết xuất ảnh.
+> Ảnh `.png` (tỉ lệ 2x) và `.svg` đã được kết xuất sẵn cạnh mỗi file `.puml`, dán trực tiếp vào báo cáo được ngay.
 
 ---
 
@@ -237,6 +259,13 @@ restaurant-management-system/
 │   ├── nginx.conf                            # Reverse proxy & SPA routing
 │   ├── Dockerfile                            # Multi-stage: Node build → Nginx serve
 │   └── package.json
+│
+├── docs/
+│   └── diagrams/                             # Biểu đồ thiết kế (.puml + .png + .svg)
+│       ├── use-case/                         # Biểu đồ ca sử dụng (00 -> 08)
+│       ├── sequence/                         # Biểu đồ tuần tự tương ứng 1-1
+│       ├── render.sh                         # Script kết xuất ảnh từ file .puml
+│       └── README.md                         # Quy ước vẽ chuẩn & hướng dẫn sử dụng
 │
 ├── docker-compose.yml                        # Điều phối 3 services: MySQL, Backend, Frontend
 ├── .env.example                              # Template biến môi trường

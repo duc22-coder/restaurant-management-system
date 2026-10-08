@@ -1,0 +1,67 @@
+@startuml uc-01-dat-mon-tai-ban
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC01: ĐẶT MÓN TẠI BÀN (QUÉT QR TẠI BÀN)
+'  Tác nhân chính: Khách hàng        Tác nhân phụ: Nhân viên (nhận đơn ở bếp)
+'  Biểu đồ tuần tự tương ứng: sequence/01-dat-mon-tai-ban.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Khách hàng" as KH
+actor "Nhân viên"  as NV
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Xem thực đơn"                       as UC_XemThucDon
+    usecase "Đặt món tại bàn"                    as UC_DatMon
+    usecase "Quản lý giỏ hàng"                   as UC_GioHang
+    usecase "Kiểm tra và cập nhật trạng thái bàn" as UC_KiemTraBan
+    usecase "Gửi đơn hàng tới bếp"               as UC_GuiDon
+    usecase "Theo dõi trạng thái đơn hàng"       as UC_TheoDoi
+
+    usecase "Tìm kiếm - Lọc món ăn" as UC_TimKiem
+    usecase "Quét mã QR bàn"        as UC_QuetQR
+    usecase "Chọn bàn trên sơ đồ"   as UC_ChonBan
+    usecase "Ghi chú món ăn"        as UC_GhiChu
+    usecase "Áp dụng voucher"       as UC_Voucher
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+KH - UC_DatMon
+KH - UC_TheoDoi
+NV - UC_GuiDon
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_DatMon ..> UC_XemThucDon : <<include>>
+UC_DatMon ..> UC_GioHang    : <<include>>
+UC_DatMon ..> UC_KiemTraBan : <<include>>
+UC_DatMon ..> UC_GuiDon     : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_TimKiem ..> UC_XemThucDon : <<extend>>
+UC_QuetQR  ..> UC_DatMon     : <<extend>>
+UC_ChonBan ..> UC_DatMon     : <<extend>>
+UC_GhiChu  ..> UC_GioHang    : <<extend>>
+UC_Voucher ..> UC_GioHang    : <<extend>>
+
+note bottom of UC_DatMon
+  Tiền điều kiện: bàn đang trạng thái AVAILABLE.
+  Sau khi tạo đơn, hệ thống chuyển bàn sang OCCUPIED.
+end note
+
+@enduml

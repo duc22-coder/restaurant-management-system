@@ -1,0 +1,63 @@
+@startuml uc-07-dang-nhap-va-dang-ky
+' ============================================================================
+'  BIỂU ĐỒ CA SỬ DỤNG — UC07: ĐĂNG NHẬP / ĐĂNG KÝ TÀI KHOẢN
+'  Tác nhân: Khách hàng, Nhân viên, Quản trị viên
+'  Biểu đồ tuần tự tương ứng: sequence/07-dang-nhap-va-dang-ky.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        13
+skinparam shadowing              false
+skinparam linetype               ortho
+skinparam ranksep                40
+skinparam ArrowColor             #1F2937
+skinparam ArrowFontSize          12
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam UsecaseBorderColor     #2563EB
+skinparam UsecaseBackgroundColor #DBEAFE
+skinparam UsecaseFontColor       #1E3A8A
+skinparam RectangleBorderColor   #111827
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam RectangleFontStyle     bold
+
+left to right direction
+
+actor "Khách hàng"    as KH
+actor "Nhân viên"     as NV
+actor "Quản trị viên" as QTV
+
+rectangle "Hệ thống Quản lý Nhà hàng" {
+    usecase "Đăng nhập"                     as UC_DangNhap
+    usecase "Xác thực tài khoản và cấp JWT" as UC_XacThuc
+    usecase "Phân quyền theo vai trò"       as UC_PhanQuyen
+    usecase "Đăng ký tài khoản khách hàng"  as UC_DangKy
+    usecase "Cập nhật thông tin cá nhân"    as UC_Profile
+    usecase "Đăng xuất"                     as UC_DangXuat
+}
+
+' ------------------------------- LIÊN KẾT TÁC NHÂN --------------------------
+KH  - UC_DangNhap
+KH  - UC_DangKy
+KH  - UC_Profile
+
+NV  - UC_DangNhap
+NV  - UC_Profile
+
+QTV - UC_DangNhap
+QTV - UC_Profile
+
+' --------------------------- <<include>> (bắt buộc) -------------------------
+UC_DangNhap ..> UC_XacThuc    : <<include>>
+UC_DangNhap ..> UC_PhanQuyen  : <<include>>
+UC_DangKy   ..> UC_XacThuc    : <<include>>
+
+' --------------------------- <<extend>> (tùy chọn) --------------------------
+UC_DangXuat ..> UC_DangNhap : <<extend>>
+
+note bottom of UC_DangNhap
+  Tài khoản mặc định khi seed dữ liệu:
+  admin/admin123 (ADMIN), staff/staff123 (STAFF).
+end note
+
+@enduml

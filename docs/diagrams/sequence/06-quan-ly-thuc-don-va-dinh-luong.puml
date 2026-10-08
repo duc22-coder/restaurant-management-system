@@ -1,0 +1,94 @@
+@startuml seq-06-quan-ly-thuc-don-va-dinh-luong
+' ============================================================================
+'  BIỂU ĐỒ TUẦN TỰ — UC06: QUẢN LÝ THỰC ĐƠN VÀ ĐỊNH LƯỢNG CÔNG THỨC (TPSP)
+'  Tương ứng biểu đồ ca sử dụng: use-case/06-quan-ly-thuc-don-va-dinh-luong.puml
+' ============================================================================
+
+skinparam defaultFontName        "DejaVu Sans"
+skinparam defaultFontSize        12
+skinparam shadowing              false
+skinparam ArrowColor             #1F2937
+skinparam LifeLineBorderColor    #9CA3AF
+skinparam ParticipantBorderColor #1F2937
+skinparam ParticipantBackgroundColor #DBEAFE
+skinparam ParticipantFontColor   #1E3A8A
+skinparam ActorBorderColor       #1F2937
+skinparam ActorBackgroundColor   #FDE68A
+skinparam ActivationBorderColor  #2563EB
+skinparam ActivationBackgroundColor #BFDBFE
+skinparam NoteBackgroundColor    #FEF3C7
+skinparam NoteBorderColor        #CA8A04
+skinparam SequenceGroupBorderColor #2563EB
+skinparam maxMessageSize         170
+
+autonumber
+hide footbox
+
+actor       "Quản trị viên"  as QTV
+participant "Giao diện\nAdmin" as FE
+participant "AdminMenuItem\nController" as Ctrl
+participant "MenuItemService" as Svc
+participant "CSDL MySQL"     as DB
+
+== 1. Quản lý danh mục món ==
+QTV -> FE : Thêm / sửa / xóa danh mục
+FE -> Ctrl : POST | PUT | DELETE /api/admin/categories
+Ctrl -> DB : INSERT | UPDATE | DELETE categories
+DB --> Ctrl : OK
+Ctrl --> FE : 200 OK
+FE --> QTV : Cập nhật danh sách danh mục
+
+== 2. Thêm món ăn mới ==
+QTV -> FE : Nhập tên món, giá, hình ảnh, chọn danh mục
+FE -> Ctrl : POST /api/admin/menu-items
+activate Ctrl
+Ctrl -> Svc : createMenuItem(request)
+activate Svc
+Svc -> DB : INSERT menu_items (AVAILABLE)
+DB --> Svc : menu_item_id
+Svc --> Ctrl : MenuItemResponse
+deactivate Svc
+Ctrl --> FE : 201 Created
+deactivate Ctrl
+FE --> QTV : Món mới xuất hiện trên thực đơn
+
+== 3. Thiết lập định lượng công thức (TPSP) ==
+QTV -> FE : Mở "Định lượng công thức" của món
+FE -> Ctrl : GET /api/admin/recipes/by-product/{productId}
+Ctrl -> DB : SELECT product_recipes
+DB --> Ctrl : Danh sách nguyên liệu đã thiết lập
+Ctrl --> FE : 200 OK
+
+QTV -> FE : Thêm nguyên liệu và số lượng tiêu hao cho 1 suất
+FE -> Ctrl : POST /api/admin/recipes
+activate Ctrl
+Ctrl -> Svc : createRecipe(request)
+activate Svc
+Svc -> DB : SELECT product_details (nguyên liệu kho)
+DB --> Svc : Nguyên liệu hợp lệ
+Svc -> DB : INSERT product_recipes (product_id, detail_id, quantity)
+Svc --> Ctrl : ProductRecipeResponse
+deactivate Svc
+Ctrl --> FE : 201 Created
+deactivate Ctrl
+FE --> QTV : Công thức đã lưu, sẵn sàng tự trừ kho khi nấu
+
+== 4. Đổi trạng thái món ==
+alt Món còn hàng -> hết hàng
+  QTV -> FE : Chuyển "Hết món" (hoặc tự động khi kho = 0)
+  FE -> Ctrl : PUT /api/admin/menu-items/{id}\n(status = OUT_OF_STOCK)
+  Ctrl -> Svc : updateMenuItem(id, request)
+  Svc -> DB : UPDATE menu_items SET status = OUT_OF_STOCK
+  Svc --> FE : 200 OK
+  FE --> QTV : Món không còn hiển thị cho khách đặt
+end
+
+== 5. Khách xem thực đơn mới ==
+QTV --> FE : Thực đơn được cập nhật
+FE -> Ctrl : GET /api/customer/menu
+Ctrl -> DB : SELECT menu_items WHERE status = AVAILABLE
+DB --> Ctrl : Danh sách món còn bán
+Ctrl --> FE : 200 OK
+FE --> QTV : Khách nhìn thấy thực đơn mới nhất
+
+@enduml

@@ -8,13 +8,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
 @Component
+@Profile("dev")
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer implements CommandLineRunner {
@@ -28,6 +31,7 @@ public class DataInitializer implements CommandLineRunner {
     private final ProductRecipeRepository productRecipeRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PurchaseOrderItemRepository purchaseOrderItemRepository;
+    private final ReservationRepository reservationRepository;
 
     @Override
     @Transactional
@@ -36,6 +40,7 @@ public class DataInitializer implements CommandLineRunner {
         seedTables();
         seedCategoriesAndMenuItems();
         seedInventoryAndPurchases();
+        seedReservations();
     }
 
     private void seedUsers() {
@@ -263,7 +268,7 @@ public class DataInitializer implements CommandLineRunner {
                     .name("Thịt Bò Mỹ Tươi")
                     .description("Thịt ba chỉ / thăn bò Mỹ nhập khẩu")
                     .price(new BigDecimal("280000"))
-                    .image("https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=600&auto=format&fit=crop")
+                    .image("https://images.unsplash.com/photo-1613454320437-0c228c8b1723?w=600&auto=format&fit=crop")
                     .status(MenuItemStatus.AVAILABLE)
                     .build();
 
@@ -459,6 +464,58 @@ public class DataInitializer implements CommandLineRunner {
             }
 
             log.info("Seeding SPCT, TPSP and Purchase Orders completed successfully!");
+        }
+    }
+
+    private void seedReservations() {
+        if (reservationRepository.count() == 0) {
+            log.info("Creating initial reservations for today and tomorrow...");
+
+            List<RestaurantTable> tables = tableRepository.findAll();
+            if (tables.size() >= 4) {
+                RestaurantTable t2 = tables.get(1); // B02
+                RestaurantTable t3 = tables.get(2); // B03
+                RestaurantTable t7 = tables.get(6); // B07 (VIP)
+
+                Reservation r1 = Reservation.builder()
+                        .reservationCode("RSV-DEMO-001")
+                        .table(t2)
+                        .customerName("Nguyễn Văn An")
+                        .customerPhone("0912345678")
+                        .guestCount(4)
+                        .reservationDate(LocalDate.now())
+                        .timeSlot("11:00 - 12:30")
+                        .status(ReservationStatus.CONFIRMED)
+                        .note("Yêu cầu chuẩn bị ghế trẻ em")
+                        .build();
+
+                Reservation r2 = Reservation.builder()
+                        .reservationCode("RSV-DEMO-002")
+                        .table(t3)
+                        .customerName("Trần Thị Mai")
+                        .customerPhone("0987654321")
+                        .guestCount(2)
+                        .reservationDate(LocalDate.now())
+                        .timeSlot("19:00 - 20:30")
+                        .status(ReservationStatus.PENDING)
+                        .note("Kỷ niệm ngày cưới, view thoáng mát")
+                        .build();
+
+                Reservation r3 = Reservation.builder()
+                        .reservationCode("RSV-DEMO-003")
+                        .table(t7)
+                        .customerName("Lê Hoàng Long")
+                        .customerPhone("0909123456")
+                        .guestCount(8)
+                        .reservationDate(LocalDate.now().plusDays(1))
+                        .timeSlot("18:30 - 20:00")
+                        .status(ReservationStatus.CONFIRMED)
+                        .note("Tiệc sinh nhật gia đình, chuẩn bị sẵn hoa tươi")
+                        .build();
+
+                reservationRepository.saveAll(List.of(r1, r2, r3));
+                log.info("Sample reservations created successfully!");
+            }
         }
     }
 }

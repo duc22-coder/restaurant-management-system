@@ -10,8 +10,9 @@ import java.util.List;
 
 public interface OrderService {
     OrderResponse createCustomerOrder(OrderRequest request, Long customerId);
-    OrderResponse getOrderByOrderCode(String orderCode);
-    List<OrderResponse> getOrdersByTableId(Long tableId);
+    OrderResponse createStaffOrder(OrderRequest request);
+    OrderResponse getOrderByOrderCode(String orderCode, Long customerId);
+    List<OrderResponse> getOrdersByTableId(Long tableId, Long customerId);
     List<OrderResponse> getMyOrders(Long customerId);
     List<OrderResponse> getAllActiveOrders();
     List<OrderResponse> getAllOrders(OrderStatus status);

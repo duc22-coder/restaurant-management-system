@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { LayoutGrid, Plus, Edit2, Trash2, X, ArrowLeft, QrCode, Users } from 'lucide-react';
@@ -10,6 +11,7 @@ const STATUS_LABEL = {
 };
 
 function AdminTablesPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,19 +67,19 @@ function AdminTablesPage() {
       setShowModal(false);
       fetchTables();
     } catch (err) {
-      alert('Lỗi lưu thông tin bàn: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi lưu thông tin bàn: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id, number) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa bàn "${number}"?`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn xóa bàn "${number}"?`)) {
       try {
         await axiosClient.delete(`/admin/tables/${id}`);
         fetchTables();
       } catch (err) {
-        alert('Lỗi xóa bàn: ' + (err.response?.data?.message || err.message));
+        notify('Lỗi xóa bàn: ' + (err.response?.data?.message || err.message));
       }
     }
   };

@@ -4,6 +4,9 @@ import com.restaurant.entity.ProductDetail;
 import com.restaurant.enums.ProductDetailStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -26,4 +29,8 @@ public interface ProductDetailRepository extends JpaRepository<ProductDetail, Lo
     List<ProductDetail> findLowStockAlerts();
 
     List<ProductDetail> findByStatus(ProductDetailStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM ProductDetail p WHERE p.id = :id")
+    Optional<ProductDetail> findByIdForUpdate(@Param("id") Long id);
 }

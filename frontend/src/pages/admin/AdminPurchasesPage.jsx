@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import {
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 
 function AdminPurchasesPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [purchases, setPurchases] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -96,7 +98,7 @@ function AdminPurchasesPage() {
 
   const handleRemoveItemRow = (index) => {
     if (items.length <= 1) {
-      alert("Phiếu nhập phải có ít nhất 1 mặt hàng!");
+      notify("Phiếu nhập phải có ít nhất 1 mặt hàng!");
       return;
     }
     setItems(items.filter((_, i) => i !== index));
@@ -128,7 +130,7 @@ function AdminPurchasesPage() {
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (items.some(it => !it.productDetailId || it.quantity <= 0)) {
-      alert("Vui lòng kiểm tra lại mặt hàng và số lượng nhập!");
+      notify("Vui lòng kiểm tra lại mặt hàng và số lượng nhập!");
       return;
     }
 
@@ -151,14 +153,14 @@ function AdminPurchasesPage() {
       setShowCreateModal(false);
       fetchPurchases();
     } catch (err) {
-      alert("Lỗi tạo phiếu nhập: " + (err.response?.data?.message || err.message));
+      notify("Lỗi tạo phiếu nhập: " + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleComplete = async (id) => {
-    if (!window.confirm("Xác nhận HOÀN TẤT NHẬP KHO? Toàn bộ số lượng trong phiếu sẽ tự động được cộng vào tồn kho các mặt hàng SPCT!")) return;
+    if (!(await confirmDialog("Xác nhận HOÀN TẤT NHẬP KHO? Toàn bộ số lượng trong phiếu sẽ tự động được cộng vào tồn kho các mặt hàng SPCT!"))) return;
     try {
       await axiosClient.post(`/admin/purchases/${id}/complete`);
       fetchPurchases();
@@ -168,12 +170,12 @@ function AdminPurchasesPage() {
         setSelectedPurchase(updated);
       }
     } catch (err) {
-      alert("Lỗi duyệt nhập kho: " + (err.response?.data?.message || err.message));
+      notify("Lỗi duyệt nhập kho: " + (err.response?.data?.message || err.message));
     }
   };
 
   const handleCancel = async (id) => {
-    if (!window.confirm("Bạn có chắc muốn hủy phiếu nhập kho này?")) return;
+    if (!(await confirmDialog("Bạn có chắc muốn hủy phiếu nhập kho này?"))) return;
     try {
       await axiosClient.post(`/admin/purchases/${id}/cancel`);
       fetchPurchases();
@@ -182,7 +184,7 @@ function AdminPurchasesPage() {
         setSelectedPurchase(updated);
       }
     } catch (err) {
-      alert("Lỗi hủy phiếu: " + (err.response?.data?.message || err.message));
+      notify("Lỗi hủy phiếu: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -199,7 +201,7 @@ function AdminPurchasesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-30 shadow-lg">
         <div className="flex items-center gap-3">

@@ -4,6 +4,7 @@ import com.restaurant.dto.request.PaymentRequest;
 import com.restaurant.dto.response.BankQrResponse;
 import com.restaurant.dto.response.OrderItemResponse;
 import com.restaurant.dto.response.PaymentResponse;
+import com.restaurant.dto.response.VoucherApplyResponse;
 import com.restaurant.entity.Order;
 import com.restaurant.entity.OrderItem;
 import com.restaurant.entity.Payment;
@@ -50,10 +51,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public void requestCustomerPayment(Long tableId) {
-        RestaurantTable table = tableRepository.findById(tableId)
+    public void requestCustomerPayment(Long tableId, Long customerId) {
+        RestaurantTable table = tableRepository.findByIdForUpdate(tableId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + tableId));
-
+        List<Order> active = orderRepository.findActiveOrdersByTableId(tableId);
+        if (table.getStatus() != TableStatus.OCCUPIED || active.isEmpty()
+                || active.stream().anyMatch(o -> o.getCustomer() == null || !o.getCustomer().getId().equals(customerId))) {
+            throw new RuntimeException("Bạn không có quyền yêu cầu thanh toán bàn này!");
+        }
         table.setStatus(TableStatus.PAYING);
         tableRepository.save(table);
     }
@@ -62,12 +67,14 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public PaymentResponse processStaffPayment(PaymentRequest request) {
         // 1. Tìm Đơn hàng
-        Order order = orderRepository.findById(request.getOrderId())
+        Order order = orderRepository.findByIdForUpdate(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + request.getOrderId()));
 
-        if (order.getStatus() == OrderStatus.COMPLETED) {
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.PROCESSING) {
             throw new RuntimeException("Đơn hàng này đã được thanh toán trước đó!");
         }
+        if (paymentRepository.findByOrderId(order.getId()).filter(p -> p.getStatus() == PaymentStatus.COMPLETED).isPresent())
+            throw new RuntimeException("Đơn hàng này đã được thanh toán trước đó!");
 
         // 2. Tính toán số tiền giảm giá
         BigDecimal discount;
@@ -78,7 +85,7 @@ public class PaymentServiceImpl implements PaymentService {
         } else {
             // Không có mã voucher -> cho phép Staff/Quản lý tự nhập số tiền giảm thủ công (giảm giá thiện chí)
             discount = request.getDiscountAmount() != null ? request.getDiscountAmount() : BigDecimal.ZERO;
-            if (discount.compareTo(order.getTotalAmount()) > 0) {
+            if (discount.signum() < 0 || discount.compareTo(order.getTotalAmount()) > 0) {
                 throw new RuntimeException("Số tiền giảm giá không được lớn hơn tổng tiền đơn hàng!");
             }
         }
@@ -104,6 +111,8 @@ public class PaymentServiceImpl implements PaymentService {
         // 5. Giải phóng bàn ăn về AVAILABLE nếu không còn đơn chưa hoàn thành nào (chỉ áp dụng cho đơn DINE_IN có bàn)
         RestaurantTable table = order.getTable();
         if (table != null) {
+            table = tableRepository.findByIdForUpdate(table.getId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn của đơn hàng!"));
             List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(table.getId());
             if (remainingActive.isEmpty()) {
                 table.setStatus(TableStatus.AVAILABLE);
@@ -142,9 +151,15 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public BankQrResponse generateBankQr(String orderCode) {
+    public BankQrResponse generateBankQr(String orderCode, Long customerId) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        if (order.getCustomer() == null || !order.getCustomer().getId().equals(customerId))
+            throw new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode);
+        return buildBankQr(order, order.getTotalAmount());
+    }
+
+    private BankQrResponse buildBankQr(Order order, BigDecimal amount) {
 
         if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new RuntimeException("Đơn hàng này đã hoàn tất hoặc đã hủy, không thể tạo mã thanh toán!");
@@ -161,14 +176,14 @@ public class PaymentServiceImpl implements PaymentService {
                 "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
                 bankBin,
                 bankAccountNumber,
-                order.getTotalAmount().toBigInteger().toString(),
+                amount.toBigInteger().toString(),
                 UriUtils.encode(transferContent, StandardCharsets.UTF_8),
                 UriUtils.encode(bankAccountName, StandardCharsets.UTF_8)
         );
 
         return BankQrResponse.builder()
                 .orderCode(order.getOrderCode())
-                .amount(order.getTotalAmount())
+                .amount(amount)
                 .bankBin(bankBin)
                 .accountNumber(bankAccountNumber)
                 .accountName(bankAccountName)
@@ -179,10 +194,15 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public BankQrResponse generateBankQrByOrderId(Long orderId) {
+    public BankQrResponse generateBankQrByOrderId(Long orderId, String voucherCode) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + orderId));
-        return generateBankQr(order.getOrderCode());
+        BigDecimal amount = order.getTotalAmount();
+        if (voucherCode != null && !voucherCode.isBlank()) {
+            VoucherApplyResponse preview = voucherService.validateVoucher(voucherCode, amount);
+            amount = preview.getFinalAmount();
+        }
+        return buildBankQr(order, amount);
     }
 
     private PaymentResponse mapToResponse(Payment payment, Order order) {

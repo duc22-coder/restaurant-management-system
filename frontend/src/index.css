@@ -2,8 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 @layer base {
   body {
     @apply bg-slate-900 text-slate-100 min-h-screen selection:bg-brand-500 selection:text-white;
+    font-family: Arial, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid #d4b36f;
+    outline-offset: 2px;
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Utensils, Lock, User, LogIn, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
+import { Utensils, Lock, User, LogIn, AlertCircle } from 'lucide-react';
 
 function LoginPage() {
   const [username, setUsername] = useState('');
@@ -18,29 +18,6 @@ function LoginPage() {
 
     try {
       const authData = await login(username, password);
-      if (authData.role === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (authData.role === 'CUSTOMER') {
-        navigate('/menu');
-      } else {
-        navigate('/staff/dashboard');
-      }
-    } catch (err) {
-      console.error("Login failed:", err);
-      setError(err.response?.data?.message || err.message || 'Tài khoản hoặc mật khẩu không chính xác!');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (usr, pwd) => {
-    setUsername(usr);
-    setPassword(pwd);
-    setError('');
-    setLoading(true);
-
-    try {
-      const authData = await login(usr, pwd);
       if (authData.role === 'ADMIN') {
         navigate('/admin/dashboard');
       } else if (authData.role === 'CUSTOMER') {
@@ -140,44 +117,6 @@ function LoginPage() {
             Đăng ký ngay
           </button>
         </p>
-
-        {/* Quick Fill Test Accounts */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-            Đăng nhập nhanh (Đồ Án)
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('staff', 'staff123')}
-              className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900 text-left flex items-center gap-2.5 transition"
-            >
-              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
-                <UserCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-200">Staff</p>
-                <p className="text-[10px] text-slate-500">Bếp & Phục Vụ</p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('admin', 'admin123')}
-              className="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900 text-left flex items-center gap-2.5 transition"
-            >
-              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-200">Admin</p>
-                <p className="text-[10px] text-slate-500">Quản Trị Viên</p>
-              </div>
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>

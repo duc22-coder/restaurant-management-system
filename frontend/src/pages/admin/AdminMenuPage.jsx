@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { UtensilsCrossed, Plus, Edit2, Trash2, X, Check, ArrowLeft, Search, ToggleLeft, ToggleRight } from 'lucide-react';
 
 function AdminMenuPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -90,7 +92,7 @@ function AdminMenuPage() {
       setShowModal(false);
       fetchMenuItems();
     } catch (err) {
-      alert("Lỗi lưu món ăn: " + (err.response?.data?.message || err.message));
+      notify("Lỗi lưu món ăn: " + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
@@ -101,17 +103,17 @@ function AdminMenuPage() {
       await axiosClient.patch(`/admin/menu/${id}/toggle-status`);
       fetchMenuItems();
     } catch (err) {
-      alert("Lỗi đổi trạng thái món ăn: " + (err.response?.data?.message || err.message));
+      notify("Lỗi đổi trạng thái món ăn: " + (err.response?.data?.message || err.message));
     }
   };
 
   const handleDelete = async (id, itemName) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa món ăn "${itemName}"?`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn xóa món ăn "${itemName}"?`)) {
       try {
         await axiosClient.delete(`/admin/menu/${id}`);
         fetchMenuItems();
       } catch (err) {
-        alert("Lỗi xóa món ăn: " + (err.response?.data?.message || err.message));
+        notify("Lỗi xóa món ăn: " + (err.response?.data?.message || err.message));
       }
     }
   };

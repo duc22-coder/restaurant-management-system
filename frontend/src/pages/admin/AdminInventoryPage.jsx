@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import {
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 
 function AdminInventoryPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [details, setDetails] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -122,19 +124,19 @@ function AdminInventoryPage() {
       setShowModal(false);
       fetchInventory();
     } catch (err) {
-      alert("Lỗi lưu SPCT: " + (err.response?.data?.message || err.message));
+      notify("Lỗi lưu SPCT: " + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa mặt hàng SPCT này khỏi kho?")) return;
+    if (!(await confirmDialog("Bạn có chắc chắn muốn xóa mặt hàng SPCT này khỏi kho?"))) return;
     try {
       await axiosClient.delete(`/admin/inventory/${id}`);
       fetchInventory();
     } catch (err) {
-      alert("Lỗi khi xóa SPCT: " + (err.response?.data?.message || err.message));
+      notify("Lỗi khi xóa SPCT: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -148,7 +150,7 @@ function AdminInventoryPage() {
       setStockDelta(0);
       fetchInventory();
     } catch (err) {
-      alert("Lỗi cập nhật tồn kho: " + (err.response?.data?.message || err.message));
+      notify("Lỗi cập nhật tồn kho: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -177,7 +179,7 @@ function AdminInventoryPage() {
   const outOfStockCount = details.filter(d => d.stockQuantity <= 0).length;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-30 shadow-lg">
         <div className="flex items-center gap-3">

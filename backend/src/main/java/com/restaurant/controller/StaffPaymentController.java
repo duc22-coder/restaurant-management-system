@@ -35,8 +35,9 @@ public class StaffPaymentController {
 
     // Nhân viên tạo mã QR chuyển khoản khi khách ăn tại bàn muốn thanh toán bằng chuyển khoản thay vì tiền mặt
     @GetMapping("/qr/{orderId}")
-    public ResponseEntity<BankQrResponse> getBankQr(@PathVariable Long orderId) {
-        return ResponseEntity.ok(paymentService.generateBankQrByOrderId(orderId));
+    public ResponseEntity<BankQrResponse> getBankQr(@PathVariable Long orderId,
+            @RequestParam(required = false) String voucherCode) {
+        return ResponseEntity.ok(paymentService.generateBankQrByOrderId(orderId, voucherCode));
     }
 
     // Kiểm tra mã voucher có hợp lệ với đơn hàng không, trả về số tiền được giảm thực tế (chưa trừ tiền, chỉ xem trước)

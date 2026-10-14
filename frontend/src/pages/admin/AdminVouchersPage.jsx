@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { Ticket, Plus, Edit2, Trash2, X, ArrowLeft } from 'lucide-react';
@@ -12,6 +13,7 @@ const formatVND = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
 
 function AdminVouchersPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,19 +86,19 @@ function AdminVouchersPage() {
       setShowModal(false);
       fetchVouchers();
     } catch (err) {
-      alert('Lỗi lưu voucher: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi lưu voucher: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id, code) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa voucher "${code}"?`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn xóa voucher "${code}"?`)) {
       try {
         await axiosClient.delete(`/admin/vouchers/${id}`);
         fetchVouchers();
       } catch (err) {
-        alert('Lỗi xóa voucher: ' + (err.response?.data?.message || err.message));
+        notify('Lỗi xóa voucher: ' + (err.response?.data?.message || err.message));
       }
     }
   };

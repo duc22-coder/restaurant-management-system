@@ -3,6 +3,7 @@ package com.restaurant.controller;
 import com.restaurant.dto.response.CategoryResponse;
 import com.restaurant.dto.response.MenuItemResponse;
 import com.restaurant.dto.response.TableResponse;
+import com.restaurant.enums.TableStatus;
 import com.restaurant.service.CategoryService;
 import com.restaurant.service.MenuItemService;
 import com.restaurant.service.TableService;
@@ -41,6 +42,16 @@ public class CustomerMenuController {
     // Danh sách bàn công khai để Customer tự chọn/nhập số bàn khi đặt "Ăn tại bàn" mà không quét QR
     @GetMapping("/tables")
     public ResponseEntity<List<TableResponse>> getAvailableTables() {
-        return ResponseEntity.ok(tableService.getAllTables());
+        List<TableResponse> publicTables = tableService.getAllTables().stream()
+                .filter(table -> table.getStatus() == TableStatus.AVAILABLE)
+                .map(table -> TableResponse.builder()
+                        .id(table.getId())
+                        .tableNumber(table.getTableNumber())
+                        .capacity(table.getCapacity())
+                        .status(table.getStatus())
+                        .qrCode(table.getQrCode())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(publicTables);
     }
 }

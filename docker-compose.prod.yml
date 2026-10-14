@@ -1,0 +1,34 @@
+services:
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: ${PROD_DATABASE_URL:?Set PROD_DATABASE_URL}
+      PROD_DATABASE_URL: ${PROD_DATABASE_URL:?Set PROD_DATABASE_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN}
+      CADDY_EMAIL: ${CADDY_EMAIL:?Set CADDY_EMAIL}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: restaurant_caddy
+    restart: unless-stopped
+    profiles: ["production"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN to a public DNS name pointing to this host}
+      CADDY_EMAIL: ${CADDY_EMAIL:?Set CADDY_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:

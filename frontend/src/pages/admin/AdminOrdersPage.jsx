@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { ClipboardList, ArrowLeft, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
@@ -24,6 +25,7 @@ const formatVND = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
 
 function AdminOrdersPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
@@ -48,12 +50,12 @@ function AdminOrdersPage() {
   };
 
   const handleUpdateStatus = async (orderId, newStatus) => {
-    if (!window.confirm(`Xác nhận đổi trạng thái đơn hàng sang "${STATUS_LABEL[newStatus]?.text || newStatus}"?`)) return;
+    if (!(await confirmDialog(`Xác nhận đổi trạng thái đơn hàng sang "${STATUS_LABEL[newStatus]?.text || newStatus}"?`))) return;
     try {
       await axiosClient.patch(`/admin/orders/${orderId}/status`, null, { params: { status: newStatus } });
       fetchOrders();
     } catch (err) {
-      alert('Lỗi cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
     }
   };
 

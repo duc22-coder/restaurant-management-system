@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import {
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 function AdminRecipesPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState([]);
   const [inventoryDetails, setInventoryDetails] = useState([]);
@@ -126,19 +128,19 @@ function AdminRecipesPage() {
       setShowModal(false);
       fetchRecipesForProduct(selectedProduct.id);
     } catch (err) {
-      alert("Lỗi lưu định lượng TPSP: " + (err.response?.data?.message || err.message));
+      notify("Lỗi lưu định lượng TPSP: " + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa thành phần nguyên liệu này khỏi công thức?")) return;
+    if (!(await confirmDialog("Bạn có chắc chắn muốn xóa thành phần nguyên liệu này khỏi công thức?"))) return;
     try {
       await axiosClient.delete(`/admin/recipes/${id}`);
       fetchRecipesForProduct(selectedProduct.id);
     } catch (err) {
-      alert("Lỗi xóa định lượng: " + (err.response?.data?.message || err.message));
+      notify("Lỗi xóa định lượng: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -148,7 +150,7 @@ function AdminRecipesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-30 shadow-lg">
         <div className="flex items-center gap-3">

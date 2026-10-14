@@ -9,6 +9,9 @@ import com.restaurant.entity.Order;
 import com.restaurant.entity.OrderItem;
 import com.restaurant.entity.RestaurantTable;
 import com.restaurant.entity.User;
+import com.restaurant.entity.ProductRecipe;
+import com.restaurant.entity.ProductDetail;
+import com.restaurant.enums.PaymentStatus;
 import com.restaurant.enums.MenuItemStatus;
 import com.restaurant.enums.OrderItemStatus;
 import com.restaurant.enums.OrderStatus;
@@ -19,6 +22,8 @@ import com.restaurant.repository.OrderItemRepository;
 import com.restaurant.repository.OrderRepository;
 import com.restaurant.repository.ProductDetailRepository;
 import com.restaurant.repository.ProductRecipeRepository;
+import com.restaurant.repository.PaymentRepository;
+import com.restaurant.repository.ReservationRepository;
 import com.restaurant.repository.RestaurantTableRepository;
 import com.restaurant.repository.UserRepository;
 import com.restaurant.service.OrderService;
@@ -45,10 +50,22 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final ProductRecipeRepository productRecipeRepository;
     private final ProductDetailRepository productDetailRepository;
+    private final ReservationRepository reservationRepository;
+    private final PaymentRepository paymentRepository;
 
     @Override
     @Transactional
     public OrderResponse createCustomerOrder(OrderRequest request, Long customerId) {
+        return createOrderInternal(request, customerId, false);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createStaffOrder(OrderRequest request) {
+        return createOrderInternal(request, null, true);
+    }
+
+    private OrderResponse createOrderInternal(OrderRequest request, Long customerId, boolean staffOrder) {
         // 1. Xác định hình thức đặt món (mặc định DINE_IN nếu không truyền lên - giữ hành vi cũ cho khách quét QR)
         OrderType orderType = request.getOrderType() != null ? request.getOrderType() : OrderType.DINE_IN;
 
@@ -58,8 +75,29 @@ public class OrderServiceImpl implements OrderService {
             if (request.getTableId() == null) {
                 throw new RuntimeException("Vui lòng chọn bàn khi đặt món ăn tại chỗ!");
             }
-            table = tableRepository.findById(request.getTableId())
+            table = tableRepository.findByIdForUpdate(request.getTableId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + request.getTableId()));
+
+            List<Order> activeOrders = orderRepository.findActiveOrdersByTableId(table.getId());
+            if (table.getStatus() == TableStatus.PAYING) {
+                throw new RuntimeException("Bàn đang chờ thanh toán. Vui lòng đợi nhân viên hoàn tất thanh toán!");
+            }
+            if (!activeOrders.isEmpty()) {
+                boolean belongsToCustomer = customerId != null && !activeOrders.isEmpty()
+                        && activeOrders.stream().allMatch(order -> order.getCustomer() != null
+                        && customerId.equals(order.getCustomer().getId()));
+                if (!staffOrder && !belongsToCustomer) {
+                    throw new RuntimeException("Bàn " + table.getTableNumber() + " hiện đang có khách phục vụ. Vui lòng chọn bàn khác!");
+                }
+            } else if (table.getStatus() == TableStatus.OCCUPIED) {
+                boolean hasArrivedReservation = staffOrder
+                        ? reservationRepository.existsByTable_IdAndReservationDateAndStatusIn(table.getId(),
+                            java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")),
+                            List.of(com.restaurant.enums.ReservationStatus.ARRIVED))
+                        : customerId != null && reservationRepository.existsByCustomerIdAndTableIdAndStatus(
+                            customerId, table.getId(), com.restaurant.enums.ReservationStatus.ARRIVED);
+                if (!hasArrivedReservation) throw new RuntimeException("Bàn " + table.getTableNumber() + " hiện đang có khách phục vụ. Vui lòng chọn bàn khác!");
+            }
 
             // Cập nhật trạng thái bàn sang OCCUPIED (Đang có khách) nếu bàn đang trống
             if (table.getStatus() == TableStatus.AVAILABLE) {
@@ -130,6 +168,8 @@ public class OrderServiceImpl implements OrderService {
         orderItemRepository.saveAll(itemsToSave);
         savedOrder.setOrderItems(itemsToSave);
         savedOrder.setTotalAmount(totalAmount);
+        // Reserve ingredients at order creation so concurrent pending orders cannot oversell stock.
+        deductStockForOrder(savedOrder);
         orderRepository.save(savedOrder);
 
         return mapToResponse(savedOrder);
@@ -137,16 +177,19 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public OrderResponse getOrderByOrderCode(String orderCode) {
+    public OrderResponse getOrderByOrderCode(String orderCode, Long customerId) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        if (order.getCustomer() == null || !order.getCustomer().getId().equals(customerId))
+            throw new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode);
         return mapToResponse(order);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrderResponse> getOrdersByTableId(Long tableId) {
+    public List<OrderResponse> getOrdersByTableId(Long tableId, Long customerId) {
         return orderRepository.findActiveOrdersByTableId(tableId).stream()
+                .filter(order -> order.getCustomer() != null && order.getCustomer().getId().equals(customerId))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -182,22 +225,38 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateOrderStatus(Long orderId, OrderStatus status) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + orderId));
 
+        OrderStatus previousStatus = order.getStatus();
+        boolean validTransition = previousStatus == status
+                || (previousStatus == OrderStatus.PENDING && (status == OrderStatus.PROCESSING || status == OrderStatus.CANCELLED))
+                || (previousStatus == OrderStatus.PROCESSING && status == OrderStatus.CANCELLED)
+                || (previousStatus == OrderStatus.PROCESSING && status == OrderStatus.COMPLETED);
+        if (!validTransition) throw new RuntimeException("Không thể chuyển đơn từ " + previousStatus + " sang " + status + "!");
+        if (status == OrderStatus.COMPLETED && paymentRepository.findByOrderId(orderId)
+                .filter(payment -> payment.getStatus() == PaymentStatus.COMPLETED).isEmpty()) {
+            throw new RuntimeException("Không thể hoàn tất đơn hàng khi chưa có thanh toán thành công!");
+        }
+
         order.setStatus(status);
-        Order updated = orderRepository.save(order);
 
         // Trừ tồn kho nguyên liệu theo công thức TPSP khi đơn sang PROCESSING hoặc COMPLETED
         if ((status == OrderStatus.PROCESSING || status == OrderStatus.COMPLETED) && !Boolean.TRUE.equals(order.getStockDeducted())) {
             deductStockForOrder(order);
         }
+        if (status == OrderStatus.CANCELLED && previousStatus == OrderStatus.PENDING
+                && Boolean.TRUE.equals(order.getStockDeducted())) {
+            restoreStockForOrder(order);
+        }
+        Order updated = orderRepository.save(order);
 
         // Tự động giải phóng bàn nếu đơn hàng bị hủy hoặc hoàn tất thanh toán (chỉ áp dụng đơn DINE_IN có bàn)
         if ((status == OrderStatus.COMPLETED || status == OrderStatus.CANCELLED) && order.getTable() != null) {
-            List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(order.getTable().getId());
+            RestaurantTable table = tableRepository.findByIdForUpdate(order.getTable().getId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn của đơn hàng!"));
+            List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(table.getId());
             if (remainingActive.isEmpty()) {
-                RestaurantTable table = order.getTable();
                 table.setStatus(TableStatus.AVAILABLE);
                 tableRepository.save(table);
             }
@@ -210,30 +269,49 @@ public class OrderServiceImpl implements OrderService {
         if (Boolean.TRUE.equals(order.getStockDeducted())) {
             return;
         }
-        if (order.getOrderItems() != null) {
-            for (OrderItem item : order.getOrderItems()) {
-                if (item.getMenuItem() != null) {
-                    List<com.restaurant.entity.ProductRecipe> recipes = productRecipeRepository.findByProductId(item.getMenuItem().getId());
-                    for (com.restaurant.entity.ProductRecipe recipe : recipes) {
-                        com.restaurant.entity.ProductDetail detail = recipe.getIngredientDetail();
-                        if (detail != null) {
-                            double needed = (recipe.getQuantity() != null ? recipe.getQuantity() : 0.0) * (item.getQuantity() != null ? item.getQuantity() : 1);
-                            double current = detail.getStockQuantity() != null ? detail.getStockQuantity() : 0.0;
-                            double after = Math.max(0.0, current - needed);
-                            detail.setStockQuantity(after);
-                            if (after <= 0) {
-                                detail.setStatus(com.restaurant.enums.ProductDetailStatus.OUT_OF_STOCK);
-                            }
-                            productDetailRepository.save(detail);
-                            log.info("Trừ kho TPSP cho món '{}' - Nguyên liệu '{}': {} - {} = {}",
-                                    item.getMenuItem().getName(), detail.getVariantName(), current, needed, after);
-                        }
-                    }
+        java.util.Map<Long, Double> required = getRequiredIngredients(order);
+        java.util.Map<Long, ProductDetail> locked = new java.util.LinkedHashMap<>();
+        required.keySet().stream().sorted().forEach(id -> locked.put(id,
+                productDetailRepository.findByIdForUpdate(id)
+                        .orElseThrow(() -> new RuntimeException("Không tìm thấy nguyên liệu trong kho: " + id))));
+        for (var entry : required.entrySet()) {
+            ProductDetail detail = locked.get(entry.getKey());
+            double available = detail.getStockQuantity() == null ? 0.0 : detail.getStockQuantity();
+            if (detail.getStatus() == com.restaurant.enums.ProductDetailStatus.INACTIVE || available < entry.getValue()) {
+                throw new RuntimeException("Không đủ nguyên liệu '" + detail.getVariantName()
+                        + "' để xác nhận đơn. Còn " + available + ", cần " + entry.getValue() + ".");
+            }
+        }
+        locked.forEach((id, detail) -> detail.setStockQuantity(detail.getStockQuantity() - required.get(id)));
+        order.setStockDeducted(true);
+        log.info("Reserved inventory for order {}", order.getOrderCode());
+    }
+
+    private java.util.Map<Long, Double> getRequiredIngredients(Order order) {
+        java.util.Map<Long, Double> required = new java.util.TreeMap<>();
+        if (order.getOrderItems() == null) return required;
+        for (OrderItem item : order.getOrderItems()) {
+            if (item.getMenuItem() == null) continue;
+            for (ProductRecipe recipe : productRecipeRepository.findByProductId(item.getMenuItem().getId())) {
+                ProductDetail detail = recipe.getIngredientDetail();
+                if (detail != null) {
+                    double amount = (recipe.getQuantity() == null ? 0.0 : recipe.getQuantity())
+                            * (item.getQuantity() == null ? 1 : item.getQuantity());
+                    required.merge(detail.getId(), amount, Double::sum);
                 }
             }
         }
-        order.setStockDeducted(true);
-        orderRepository.save(order);
+        return required;
+    }
+
+    private void restoreStockForOrder(Order order) {
+        java.util.Map<Long, Double> required = getRequiredIngredients(order);
+        required.keySet().stream().sorted().forEach(id -> {
+            ProductDetail detail = productDetailRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy nguyên liệu trong kho: " + id));
+            detail.setStockQuantity((detail.getStockQuantity() == null ? 0.0 : detail.getStockQuantity()) + required.get(id));
+        });
+        order.setStockDeducted(false);
     }
 
     @Override
@@ -248,6 +326,9 @@ public class OrderServiceImpl implements OrderService {
         // Nếu món ăn được bếp nhận chế biến, tự động đổi trạng thái đơn hàng sang PROCESSING
         Order order = item.getOrder();
         if (status == OrderItemStatus.PREPARING && order.getStatus() == OrderStatus.PENDING) {
+            if (!Boolean.TRUE.equals(order.getStockDeducted())) {
+                deductStockForOrder(order);
+            }
             order.setStatus(OrderStatus.PROCESSING);
             orderRepository.save(order);
         }

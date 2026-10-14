@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { Users, Plus, Edit2, Trash2, X, ArrowLeft, Lock, Unlock, ShieldCheck, UserCheck, User as UserIcon } from 'lucide-react';
@@ -10,6 +11,7 @@ const ROLE_LABEL = {
 };
 
 function AdminUsersPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [roleFilter, setRoleFilter] = useState('');
@@ -62,7 +64,7 @@ function AdminUsersPage() {
       setShowModal(false);
       fetchUsers();
     } catch (err) {
-      alert('Lỗi lưu tài khoản: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi lưu tài khoản: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
@@ -70,23 +72,23 @@ function AdminUsersPage() {
 
   const handleToggleStatus = async (user) => {
     const action = user.status === 'ACTIVE' ? 'khóa' : 'mở khóa';
-    if (window.confirm(`Bạn có chắc chắn muốn ${action} tài khoản "${user.username}"?`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn ${action} tài khoản "${user.username}"?`)) {
       try {
         await axiosClient.patch(`/admin/users/${user.id}/toggle-status`);
         fetchUsers();
       } catch (err) {
-        alert('Lỗi: ' + (err.response?.data?.message || err.message));
+        notify('Lỗi: ' + (err.response?.data?.message || err.message));
       }
     }
   };
 
   const handleDelete = async (id, username) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${username}"? Hành động này không thể hoàn tác.`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn xóa tài khoản "${username}"? Hành động này không thể hoàn tác.`)) {
       try {
         await axiosClient.delete(`/admin/users/${id}`);
         fetchUsers();
       } catch (err) {
-        alert('Lỗi xóa tài khoản: ' + (err.response?.data?.message || err.message));
+        notify('Lỗi xóa tài khoản: ' + (err.response?.data?.message || err.message));
       }
     }
   };

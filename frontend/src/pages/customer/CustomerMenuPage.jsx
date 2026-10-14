@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { useCart } from '../../context/CartContext';
@@ -24,10 +25,15 @@ import {
   Truck,
   QrCode,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  Calendar,
+  AlertCircle,
+  Users,
+  Phone
 } from 'lucide-react';
 
 function CustomerMenuPage() {
+  const { notify, confirmDialog } = useNotifications();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
@@ -70,9 +76,30 @@ function CustomerMenuPage() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [availableTables, setAvailableTables] = useState([]);
+  const [customerReservations, setCustomerReservations] = useState([]);
+
+  // Cảnh báo bàn đã có khách phục vụ
+  const [tableOccupiedNotice, setTableOccupiedNotice] = useState('');
 
   // Modal chọn/đổi bàn nhanh
   const [showTableModal, setShowTableModal] = useState(false);
+
+  // Modal đặt bàn trước theo khung giờ
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const [reservationDate, setReservationDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [slotAvailability, setSlotAvailability] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [selectedResTableId, setSelectedResTableId] = useState('');
+  const [resGuestCount, setResGuestCount] = useState(2);
+  const [resCustomerName, setResCustomerName] = useState(user?.fullName || '');
+  const [resCustomerPhone, setResCustomerPhone] = useState(contactPhone || '');
+  const [resNote, setResNote] = useState('');
+  const [submittingReservation, setSubmittingReservation] = useState(false);
+  const [reservationSuccessModal, setReservationSuccessModal] = useState(null);
 
   // Order status/success modal
   const [showOrderSuccessModal, setShowOrderSuccessModal] = useState(false);
@@ -120,6 +147,9 @@ function CustomerMenuPage() {
   // Tự điền địa chỉ/SĐT đã lưu từ hồ sơ nếu khách đã đăng nhập
   useEffect(() => {
     if (isAuthenticated && user?.role === 'CUSTOMER') {
+      axiosClient.get('/customer/reservations/my')
+        .then((reservations) => setCustomerReservations(reservations || []))
+        .catch((err) => console.error('Lỗi tải lượt đặt bàn:', err));
       axiosClient
         .get('/customer/profile')
         .then((profile) => {
@@ -130,12 +160,124 @@ function CustomerMenuPage() {
     }
   }, [isAuthenticated, user]);
 
+  // Tự động điền thông tin đặt bàn khi có user / phone
+  useEffect(() => {
+    if (user?.fullName && !resCustomerName) {
+      setResCustomerName(user.fullName);
+    }
+    if (contactPhone && !resCustomerPhone) {
+      setResCustomerPhone(contactPhone);
+    }
+  }, [user, contactPhone]);
+
   const fetchTables = async () => {
     try {
       const data = await axiosClient.get('/customer/tables');
       setAvailableTables(data);
+
+      // Kiểm tra: nếu bàn đang chọn đã có khách thì không cho giữ/đặt vào bàn đó
+      const currentActiveId = queryTableId || manualTableId || tableId;
+      if (currentActiveId) {
+        const found = data.find((t) => String(t.id) === String(currentActiveId));
+        if (found && found.status !== 'AVAILABLE') {
+          const activeOrders = await axiosClient.get(`/customer/orders/table/${currentActiveId}`).catch(() => []);
+          setTableOrders(activeOrders);
+          const isOwnActiveTable = isAuthenticated && user?.role === 'CUSTOMER'
+            && activeOrders.length > 0
+            && activeOrders.every((order) => String(order.customerId) === String(user.id));
+          const reservations = isAuthenticated && user?.role === 'CUSTOMER'
+            ? await axiosClient.get('/customer/reservations/my').catch(() => []) : [];
+          if (reservations.length) setCustomerReservations(reservations);
+          const hasArrivedReservation = reservations.some((reservation) =>
+            String(reservation.tableId) === String(currentActiveId) && reservation.status === 'ARRIVED');
+          if (!isOwnActiveTable && !hasArrivedReservation) {
+            setTableId('');
+            setManualTableId('');
+            localStorage.removeItem('tableId');
+            if (queryTableId) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('tableId');
+              setSearchParams(nextParams, { replace: true });
+            }
+            setTableOccupiedNotice(
+              `Bàn ${found.tableNumber} hiện đang có khách phục vụ! Hệ thống đã tự động bỏ chọn bàn này để bạn chọn bàn trống khác.`
+            );
+          }
+        }
+      }
     } catch (err) {
       console.error('Lỗi tải danh sách bàn:', err);
+    }
+  };
+
+  const ownsArrivedReservation = (targetTableId) => isAuthenticated
+    && user?.role === 'CUSTOMER'
+    && customerReservations.some((reservation) => String(reservation.tableId) === String(targetTableId)
+      && reservation.status === 'ARRIVED');
+
+  const fetchSlotAvailability = async (targetDate) => {
+    setLoadingSlots(true);
+    try {
+      const data = await axiosClient.get('/customer/reservations/slots', {
+        params: { date: targetDate },
+      });
+      setSlotAvailability(data);
+      if (data && data.length > 0) {
+        const firstAvail = data.find((s) => s.availableTablesCount > 0);
+        setSelectedSlot(firstAvail ? firstAvail.timeSlot : data[0].timeSlot);
+      }
+    } catch (err) {
+      console.error('Lỗi tải khung giờ đặt bàn:', err);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showReservationModal) {
+      fetchSlotAvailability(reservationDate);
+    }
+  }, [reservationDate, showReservationModal]);
+
+  const handleConfirmReservation = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated || user?.role !== 'CUSTOMER') {
+      navigate('/login', { state: { from: `${window.location.pathname}${window.location.search}` } });
+      return;
+    }
+    if (!resCustomerName.trim()) {
+      notify('Vui lòng nhập họ và tên người đặt bàn!');
+      return;
+    }
+    if (!resCustomerPhone.trim()) {
+      notify('Vui lòng nhập số điện thoại liên hệ!');
+      return;
+    }
+    if (!selectedSlot) {
+      notify('Vui lòng chọn khung giờ đặt bàn!');
+      return;
+    }
+
+    setSubmittingReservation(true);
+    try {
+      const payload = {
+        tableId: selectedResTableId ? Number(selectedResTableId) : null,
+        customerName: resCustomerName.trim(),
+        customerPhone: resCustomerPhone.trim(),
+        guestCount: Number(resGuestCount),
+        reservationDate,
+        timeSlot: selectedSlot,
+        note: resNote.trim(),
+      };
+      const result = await axiosClient.post('/customer/reservations', payload);
+      setShowReservationModal(false);
+      setReservationSuccessModal(result);
+      setResNote('');
+      setSelectedResTableId('');
+    } catch (err) {
+      notify('Đặt bàn thất bại: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmittingReservation(false);
     }
   };
 
@@ -189,7 +331,7 @@ function CustomerMenuPage() {
       const data = await axiosClient.get(`/customer/payment/qr/${orderCode}`);
       setQrByOrderCode((prev) => ({ ...prev, [orderCode]: data }));
     } catch (err) {
-      alert('Lỗi tạo mã QR: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi tạo mã QR: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoadingQrCode(null);
     }
@@ -218,6 +360,15 @@ function CustomerMenuPage() {
   };
 
   const handleSelectTable = (selectedTId) => {
+    const tbl = availableTables.find((t) => String(t.id) === String(selectedTId));
+    const isOwnActiveTable = String(selectedTId) === String(activeTableDisplay)
+      && isAuthenticated && user?.role === 'CUSTOMER'
+      && tableOrders.length > 0
+      && tableOrders.every((order) => String(order.customerId) === String(user.id));
+    if (tbl && tbl.status !== 'AVAILABLE' && !isOwnActiveTable && !ownsArrivedReservation(selectedTId)) {
+      notify(`Bàn ${tbl.tableNumber} hiện đang có khách phục vụ! Quý khách vui lòng chọn bàn còn trống.`);
+      return;
+    }
     setTableId(String(selectedTId));
     setManualTableId(String(selectedTId));
     setOrderType('DINE_IN');
@@ -226,19 +377,36 @@ function CustomerMenuPage() {
   };
 
   const handleCheckoutOrder = async () => {
-    const activeTId = queryTableId || manualTableId || tableId;
-
-    if (orderType === 'DINE_IN' && !activeTId) {
-      alert('Vui lòng chọn số bàn trước khi đặt món ăn tại bàn!');
-      setShowTableModal(true);
+    if (!isAuthenticated || user?.role !== 'CUSTOMER') {
+      navigate('/login', { state: { from: `${window.location.pathname}${window.location.search}` } });
       return;
     }
+
+    const activeTId = queryTableId || manualTableId || tableId;
+
+    if (orderType === 'DINE_IN') {
+      if (!activeTId) {
+        notify('Vui lòng chọn số bàn trước khi đặt món ăn tại bàn!');
+        setShowTableModal(true);
+        return;
+      }
+      const tbl = availableTables.find((t) => String(t.id) === String(activeTId));
+      const isOwnActiveTable = String(activeTId) === String(activeTableDisplay)
+        && isAuthenticated && user?.role === 'CUSTOMER'
+        && tableOrders.length > 0
+        && tableOrders.every((order) => String(order.customerId) === String(user.id));
+      if (tbl && tbl.status !== 'AVAILABLE' && !isOwnActiveTable && !ownsArrivedReservation(activeTId)) {
+        notify(`Bàn ${tbl.tableNumber} hiện đang có khách phục vụ! Quý khách vui lòng chọn bàn trống khác trước khi đặt.`);
+        setShowTableModal(true);
+        return;
+      }
+    }
     if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
-      alert('Vui lòng nhập địa chỉ giao hàng!');
+      notify('Vui lòng nhập địa chỉ giao hàng!');
       return;
     }
     if (orderType !== 'DINE_IN' && !contactPhone.trim()) {
-      alert('Vui lòng nhập số điện thoại liên hệ!');
+      notify('Vui lòng nhập số điện thoại liên hệ!');
       return;
     }
 
@@ -255,23 +423,23 @@ function CustomerMenuPage() {
       setShowOrderSuccessModal(true);
       if (activeTId) fetchTableOrders(activeTId);
     } catch (err) {
-      alert('Đặt món thất bại: ' + (err.response?.data?.message || err.message));
+      notify('Đặt món thất bại: ' + (err.response?.data?.message || err.message));
     }
   };
 
   const handleRequestPayment = async () => {
     const activeTId = queryTableId || manualTableId || tableId;
     if (!activeTId) {
-      alert('Vui lòng chọn bàn trước khi yêu cầu tính tiền!');
+      notify('Vui lòng chọn bàn trước khi yêu cầu tính tiền!');
       setShowTableModal(true);
       return;
     }
-    if (window.confirm(`Bạn muốn gửi yêu cầu tính tiền cho Bàn B${String(activeTId).padStart(2, '0')}?`)) {
+    if (await confirmDialog(`Bạn muốn gửi yêu cầu tính tiền cho Bàn B${String(activeTId).padStart(2, '0')}?`)) {
       try {
         await axiosClient.post(`/customer/payment/request?tableId=${activeTId}`);
-        alert(`Đã gửi yêu cầu thanh toán tới nhân viên phục vụ cho Bàn B${String(activeTId).padStart(2, '0')}!`);
+        notify(`Đã gửi yêu cầu thanh toán tới nhân viên phục vụ cho Bàn B${String(activeTId).padStart(2, '0')}!`);
       } catch (err) {
-        alert('Lỗi gửi yêu cầu thanh toán: ' + (err.response?.data?.message || err.message));
+        notify('Lỗi gửi yêu cầu thanh toán: ' + (err.response?.data?.message || err.message));
       }
     }
   };
@@ -287,7 +455,7 @@ function CustomerMenuPage() {
   const activeTableDisplay = queryTableId || manualTableId || tableId;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navigation Bar (Full Desktop Width) */}
       <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -345,6 +513,19 @@ function CustomerMenuPage() {
                 {activeTableDisplay ? `Bàn B${String(activeTableDisplay).padStart(2, '0')}` : 'Chọn Bàn'}
               </span>
               <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {/* Nút Đặt Bàn Theo Khung Giờ */}
+            <button
+              onClick={() => {
+                setShowReservationModal(true);
+                fetchSlotAvailability(reservationDate);
+              }}
+              className="px-3 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm shadow-orange-500/20 active:scale-95"
+              title="Đặt bàn trước theo khung giờ"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Đặt Bàn</span>
             </button>
 
             {/* Tính tiền button (hiển thị khi đã chọn bàn) */}
@@ -429,6 +610,22 @@ function CustomerMenuPage() {
 
       {/* Main Container (Full Desktop Width) */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6">
+        {/* Cảnh báo nếu bàn trước đó đã có khách */}
+        {tableOccupiedNotice && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-amber-300 animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+              <span>{tableOccupiedNotice}</span>
+            </div>
+            <button
+              onClick={() => setTableOccupiedNotice('')}
+              className="p-1 rounded-lg text-amber-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Modern Web Hero Banner */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-orange-950/40 via-slate-900 to-slate-900 border border-orange-500/20 p-6 sm:p-8 shadow-xl">
           <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -444,8 +641,18 @@ function CustomerMenuPage() {
               Chào mừng bạn đến với Nhà Hàng ABC! Xem trực tiếp tất cả món ăn, chọn món tại bàn hoặc đặt mang về với quy trình phục vụ nhanh chóng và thanh toán tiện lợi.
             </p>
 
-            {/* Highlights tags */}
-            <div className="flex flex-wrap items-center gap-2 pt-2">
+            {/* Highlights tags & Action Button */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowReservationModal(true);
+                  fetchSlotAvailability(reservationDate);
+                }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-orange-600/30 transition active:scale-95"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Đặt Bàn Trước Theo Khung Giờ</span>
+              </button>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300">
                 <Flame className="w-3 h-3 text-orange-400" />
                 Chế biến nóng hổi
@@ -787,15 +994,28 @@ function CustomerMenuPage() {
                         <select
                           value={manualTableId}
                           onChange={(e) => {
-                            setManualTableId(e.target.value);
-                            setTableId(e.target.value);
+                            const val = e.target.value;
+                            if (val) {
+                              const tbl = availableTables.find((t) => String(t.id) === String(val));
+                              if (tbl && tbl.status !== 'AVAILABLE') {
+                                notify(`Bàn ${tbl.tableNumber} hiện đang có khách phục vụ! Quý khách vui lòng chọn bàn còn trống.`);
+                                return;
+                              }
+                            }
+                            setManualTableId(val);
+                            setTableId(val);
                           }}
                           className="w-full bg-slate-900 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-xs text-white outline-none"
                         >
-                          <option value="">-- Bấm để chọn bàn --</option>
+                          <option value="">-- Bấm để chọn bàn trống --</option>
                           {availableTables.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              Bàn {t.tableNumber} ({t.capacity} chỗ) - {t.status === 'AVAILABLE' ? 'Trống' : 'Đang phục vụ'}
+                            <option
+                              key={t.id}
+                              value={t.id}
+                              disabled={t.status !== 'AVAILABLE'}
+                              className={t.status !== 'AVAILABLE' ? 'text-slate-500 bg-slate-950' : 'text-white bg-slate-900'}
+                            >
+                              Bàn {t.tableNumber} ({t.capacity} chỗ) - {t.status === 'AVAILABLE' ? 'Trống (Khả dụng)' : 'Đang Có Khách [Khóa]'}
                             </option>
                           ))}
                         </select>
@@ -959,22 +1179,54 @@ function CustomerMenuPage() {
             {/* Available Tables Grid */}
             {orderType === 'DINE_IN' && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold text-slate-300">Danh sách các bàn tại nhà hàng:</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-300">Chọn bàn ngồi tại quán:</p>
+                  <div className="flex items-center gap-3 text-[10px]">
+                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Trống
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-400 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Có Khách
+                    </span>
+                    <span className="flex items-center gap-1 text-purple-400 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" /> Chờ TT
+                    </span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto pr-1">
                   {availableTables.map((t) => {
                     const isCurrent = String(t.id) === String(activeTableDisplay);
+                    const isOwnActiveTable = isCurrent && isAuthenticated && user?.role === 'CUSTOMER'
+                      && tableOrders.length > 0
+                      && tableOrders.every((order) => String(order.customerId) === String(user.id));
+                    const isOwnArrivedReservation = ownsArrivedReservation(t.id);
+                    const isAvailable = t.status === 'AVAILABLE' || isOwnActiveTable || isOwnArrivedReservation;
                     return (
                       <button
                         key={t.id}
+                        disabled={!isAvailable}
                         onClick={() => handleSelectTable(t.id)}
-                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
-                          isCurrent
+                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 relative ${
+                          !isAvailable
+                            ? 'bg-slate-900/40 border-amber-500/20 text-slate-500 opacity-60 cursor-not-allowed'
+                            : isCurrent
                             ? 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-600/30 ring-2 ring-orange-400/50'
-                            : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700 hover:bg-slate-800'
+                            : 'bg-slate-950 border-emerald-500/30 text-slate-200 hover:border-emerald-500 hover:bg-slate-800'
                         }`}
+                        title={!isAvailable ? `Bàn ${t.tableNumber} hiện đang có khách phục vụ` : `Bàn ${t.tableNumber} (${t.capacity} chỗ)`}
                       >
                         <span className="font-black text-sm">{t.tableNumber}</span>
                         <span className="text-[10px] opacity-75">{t.capacity} chỗ</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                          isAvailable
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : t.status === 'OCCUPIED'
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                        }`}>
+                          {isOwnActiveTable || isOwnArrivedReservation ? 'Bàn của bạn' : isAvailable ? 'Trống' : t.status === 'OCCUPIED' ? 'Có Khách' : 'Chờ TT'}
+                        </span>
                       </button>
                     );
                   })}
@@ -1229,6 +1481,331 @@ function CustomerMenuPage() {
                 })
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Đặt Bàn Trước Theo Khung Giờ */}
+      {showReservationModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-orange-500/20">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Đặt Bàn Trước Theo Khung Giờ</h3>
+                  <p className="text-[11px] text-slate-400">Chọn ngày & khung giờ thích hợp để giữ bàn chu đáo</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowReservationModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <form onSubmit={handleConfirmReservation} className="overflow-y-auto space-y-4 flex-1 pr-1">
+              {/* Step 1: Chọn Ngày */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-orange-400" />
+                  <span>1. Chọn Ngày Đến:</span>
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: 'Hôm nay', offset: 0 },
+                    { label: 'Ngày mai', offset: 1 },
+                    { label: 'Ngày kia', offset: 2 },
+                  ].map((d) => {
+                    const dt = new Date();
+                    dt.setDate(dt.getDate() + d.offset);
+                    const dtStr = dt.toISOString().split('T')[0];
+                    const isSelected = reservationDate === dtStr;
+                    return (
+                      <button
+                        type="button"
+                        key={d.label}
+                        onClick={() => setReservationDate(dtStr)}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                          isSelected
+                            ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/20'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <p>{d.label}</p>
+                        <p className="text-[10px] opacity-75 font-normal">{dtStr.split('-').slice(1).reverse().join('/')}</p>
+                      </button>
+                    );
+                  })}
+                  <div className="relative">
+                    <input
+                      type="date"
+                      min={new Date().toISOString().split('T')[0]}
+                      value={reservationDate}
+                      onChange={(e) => setReservationDate(e.target.value)}
+                      className="w-full h-full py-2 px-2.5 rounded-xl text-xs font-bold bg-slate-950 border border-slate-800 text-white focus:border-orange-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Chọn Khung Giờ */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>2. Chọn Khung Giờ Đặt Bàn:</span>
+                  </span>
+                  {loadingSlots && <span className="text-[11px] text-orange-400 animate-pulse">Đang tải bàn trống...</span>}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {slotAvailability.map((slot) => {
+                    const isSelected = selectedSlot === slot.timeSlot;
+                    const isFull = slot.availableTablesCount === 0;
+                    return (
+                      <button
+                        type="button"
+                        key={slot.timeSlot}
+                        disabled={isFull}
+                        onClick={() => {
+                          setSelectedSlot(slot.timeSlot);
+                          setSelectedResTableId('');
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between gap-1 relative ${
+                          isFull
+                            ? 'bg-slate-950/40 border-slate-800/60 text-slate-600 opacity-50 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/25 ring-2 ring-orange-400/40'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-[10px] font-semibold opacity-75">{slot.label.split('(')[0].trim()}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            isFull
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              : isSelected
+                              ? 'bg-white/20 text-white'
+                              : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {isFull ? 'Hết Bàn' : `${slot.availableTablesCount} bàn trống`}
+                          </span>
+                        </div>
+                        <p className="font-extrabold text-xs">{slot.timeSlot}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 3: Sơ Đồ Bàn Trong Khung Giờ Này */}
+              {selectedSlot && (
+                <div className="space-y-2 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>3. Chọn Bàn Trống (Khung {selectedSlot}):</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedResTableId('')}
+                      className={`text-[11px] underline underline-offset-2 ${!selectedResTableId ? 'text-orange-400 font-bold' : 'text-slate-400'}`}
+                    >
+                      {selectedResTableId ? 'Bỏ chọn bàn (Quán tự xếp)' : 'Đang chọn: Quán tự xếp bàn'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 pt-1">
+                    {(() => {
+                      const curSlot = slotAvailability.find((s) => s.timeSlot === selectedSlot);
+                      if (!curSlot) return null;
+                      return curSlot.tables.map((tbl) => {
+                        const isAvail = tbl.isAvailable;
+                        const isChosen = String(selectedResTableId) === String(tbl.tableId);
+                        return (
+                          <button
+                            type="button"
+                            key={tbl.tableId}
+                            disabled={!isAvail}
+                            onClick={() => setSelectedResTableId(String(tbl.tableId))}
+                            className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 ${
+                              !isAvail
+                                ? 'bg-slate-900/40 border-red-500/20 text-slate-500 opacity-60 cursor-not-allowed'
+                                : isChosen
+                                ? 'bg-emerald-600 border-emerald-400 text-white ring-2 ring-emerald-300 shadow-md shadow-emerald-600/30'
+                                : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-500/50 hover:bg-slate-850'
+                            }`}
+                            title={!isAvail ? 'Bàn này đã có khách đặt trước' : `Bàn ${tbl.tableNumber} - ${tbl.capacity} chỗ`}
+                          >
+                            <span className="font-extrabold text-xs">{tbl.tableNumber}</span>
+                            <span className="text-[10px] opacity-75">{tbl.capacity} chỗ</span>
+                            <span className={`text-[8px] font-bold px-1 rounded ${
+                              isAvail
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
+                              {isAvail ? 'Trống' : 'Đã Đặt'}
+                            </span>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Thông Tin Khách & Số Khách */}
+              <div className="space-y-3 pt-1 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Số lượng khách:</span>
+                  </label>
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                    <button
+                      type="button"
+                      onClick={() => setResGuestCount(Math.max(1, resGuestCount - 1))}
+                      className="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-8 text-center font-bold text-xs text-white">{resGuestCount}</span>
+                    <button
+                      type="button"
+                      onClick={() => setResGuestCount(resGuestCount + 1)}
+                      className="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                      Họ và tên người đặt (*):
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={resCustomerName}
+                      onChange={(e) => setResCustomerName(e.target.value)}
+                      placeholder="Ví dụ: Nguyễn Văn An..."
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-xs text-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                      Số điện thoại liên hệ (*):
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={resCustomerPhone}
+                      onChange={(e) => setResCustomerPhone(e.target.value)}
+                      placeholder="Ví dụ: 0912345678..."
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Ghi chú đặc biệt (Tùy chọn):
+                  </label>
+                  <input
+                    type="text"
+                    value={resNote}
+                    onChange={(e) => setResNote(e.target.value)}
+                    placeholder="Ví dụ: Bàn gần cửa sổ, tiệc sinh nhật, cần ghế trẻ em..."
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-xs text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={submittingReservation}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50"
+                >
+                  {submittingReservation ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Calendar className="w-4 h-4" />
+                      <span>Xác Nhận Đặt Bàn Ngay</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Đặt Bàn Thành Công */}
+      {reservationSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl text-center space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-white text-lg">ĐẶT BÀN THÀNH CÔNG!</h3>
+              <p className="text-xs text-slate-400 mt-1">Yêu cầu giữ chỗ của bạn đã được ghi nhận trên hệ thống</p>
+            </div>
+
+            {/* Reservation Summary */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-left space-y-2.5 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-slate-400">Mã Đặt Bàn:</span>
+                <span className="font-black text-amber-400 font-mono text-sm">{reservationSuccessModal.reservationCode}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Khung Giờ:</span>
+                <span className="font-bold text-white">{reservationSuccessModal.timeSlot}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Ngày Đến:</span>
+                <span className="font-bold text-white">{reservationSuccessModal.reservationDate}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Vị Trí Bàn:</span>
+                <span className="font-bold text-emerald-400">
+                  {reservationSuccessModal.tableNumber ? `Bàn ${reservationSuccessModal.tableNumber} (${reservationSuccessModal.tableCapacity} chỗ)` : 'Quán sắp xếp'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Số Khách / Người Đặt:</span>
+                <span className="font-bold text-slate-200">
+                  {reservationSuccessModal.guestCount} Khách • {reservationSuccessModal.customerName}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                <span className="text-slate-400">Trạng Thái:</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                  ✓ {reservationSuccessModal.status === 'CONFIRMED' ? 'Đã Xác Nhận' : 'Chờ Nhà Hàng Duyệt'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 italic">
+              Quý khách vui lòng đến trước 10 phút so với khung giờ đặt để được phục vụ chu đáo nhất.
+            </p>
+
+            <button
+              onClick={() => setReservationSuccessModal(null)}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs transition"
+            >
+              Xem Menu & Tiếp Tục
+            </button>
           </div>
         </div>
       )}

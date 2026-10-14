@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { Layers, Plus, Edit2, Trash2, X, Check, ArrowLeft, Image as ImageIcon } from 'lucide-react';
 
 function AdminCategoriesPage() {
+  const { notify, confirmDialog } = useNotifications();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,19 +65,19 @@ function AdminCategoriesPage() {
       setShowModal(false);
       fetchCategories();
     } catch (err) {
-      alert("Lỗi lưu danh mục: " + (err.response?.data?.message || err.message));
+      notify("Lỗi lưu danh mục: " + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id, catName) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục "${catName}"?`)) {
+    if (await confirmDialog(`Bạn có chắc chắn muốn xóa danh mục "${catName}"?`)) {
       try {
         await axiosClient.delete(`/admin/categories/${id}`);
         fetchCategories();
       } catch (err) {
-        alert("Lỗi xóa danh mục: " + (err.response?.data?.message || err.message));
+        notify("Lỗi xóa danh mục: " + (err.response?.data?.message || err.message));
       }
     }
   };

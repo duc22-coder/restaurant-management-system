@@ -20,8 +20,7 @@ public class CustomerOrderController {
 
     private final OrderService orderService;
 
-    // Khách vãng lai (chưa đăng nhập) vẫn đặt được bình thường (userPrincipal = null).
-    // Nếu khách đã đăng nhập (có JWT hợp lệ), đơn hàng sẽ tự động gắn vào tài khoản để lưu lịch sử.
+    // Customer authentication is required by SecurityConfig.
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request,
                                                        @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -40,14 +39,18 @@ public class CustomerOrderController {
     }
 
     @GetMapping("/{orderCode}")
-    public ResponseEntity<OrderResponse> getOrderByCode(@PathVariable String orderCode) {
-        OrderResponse response = orderService.getOrderByOrderCode(orderCode);
+    public ResponseEntity<OrderResponse> getOrderByCode(@PathVariable String orderCode,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        if (userPrincipal == null) return ResponseEntity.status(401).build();
+        OrderResponse response = orderService.getOrderByOrderCode(orderCode, userPrincipal.getId());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/table/{tableId}")
-    public ResponseEntity<List<OrderResponse>> getOrdersByTable(@PathVariable Long tableId) {
-        List<OrderResponse> responses = orderService.getOrdersByTableId(tableId);
+    public ResponseEntity<List<OrderResponse>> getOrdersByTable(@PathVariable Long tableId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        if (userPrincipal == null) return ResponseEntity.status(401).build();
+        List<OrderResponse> responses = orderService.getOrdersByTableId(tableId, userPrincipal.getId());
         return ResponseEntity.ok(responses);
     }
 }

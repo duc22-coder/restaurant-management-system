@@ -108,7 +108,9 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional
     public BigDecimal applyVoucherAndIncrementUsage(String code, BigDecimal orderAmount) {
-        Voucher voucher = getValidVoucherOrThrow(code, orderAmount);
+        Voucher voucher = voucherRepository.findByCodeForUpdate(code.trim().toUpperCase())
+                .orElseThrow(() -> new RuntimeException("Mã voucher '" + code + "' không tồn tại!"));
+        validateVoucher(voucher, code, orderAmount);
         BigDecimal discountAmount = computeDiscount(voucher, orderAmount);
 
         voucher.setUsedCount(voucher.getUsedCount() + 1);
@@ -122,7 +124,11 @@ public class VoucherServiceImpl implements VoucherService {
     private Voucher getValidVoucherOrThrow(String code, BigDecimal orderAmount) {
         Voucher voucher = voucherRepository.findByCode(code.trim().toUpperCase())
                 .orElseThrow(() -> new RuntimeException("Mã voucher '" + code + "' không tồn tại!"));
+        validateVoucher(voucher, code, orderAmount);
+        return voucher;
+    }
 
+    private void validateVoucher(Voucher voucher, String code, BigDecimal orderAmount) {
         if (!Boolean.TRUE.equals(voucher.getActive())) {
             throw new RuntimeException("Voucher này hiện không còn hoạt động!");
         }
@@ -144,7 +150,6 @@ public class VoucherServiceImpl implements VoucherService {
             throw new RuntimeException("Đơn hàng cần tối thiểu " + minOrder + "đ để áp dụng voucher này!");
         }
 
-        return voucher;
     }
 
     private BigDecimal computeDiscount(Voucher voucher, BigDecimal orderAmount) {

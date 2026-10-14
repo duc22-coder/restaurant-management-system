@@ -2,6 +2,8 @@ package com.restaurant.controller;
 
 import com.restaurant.dto.response.OrderItemResponse;
 import com.restaurant.dto.response.OrderResponse;
+import com.restaurant.dto.request.OrderRequest;
+import jakarta.validation.Valid;
 import com.restaurant.enums.OrderItemStatus;
 import com.restaurant.enums.OrderStatus;
 import com.restaurant.service.OrderService;
@@ -17,6 +19,11 @@ import java.util.List;
 public class StaffOrderController {
 
     private final OrderService orderService;
+
+    @PostMapping
+    public ResponseEntity<OrderResponse> createWalkInOrder(@Valid @RequestBody OrderRequest request) {
+        return ResponseEntity.status(201).body(orderService.createStaffOrder(request));
+    }
 
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllActiveOrders() {

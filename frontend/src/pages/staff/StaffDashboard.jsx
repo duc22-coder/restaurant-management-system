@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
 import {
@@ -20,10 +21,18 @@ import {
   DollarSign,
   QrCode,
   Receipt,
-  X
+  X,
+  Calendar,
+  CalendarCheck,
+  Phone,
+  Users,
+  Plus,
+  Filter,
+  Minus
 } from 'lucide-react';
 
 function StaffDashboard() {
+  const { notify, confirmDialog } = useNotifications();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('kds'); // 'kds', 'tables', 'payments'
   const [orders, setOrders] = useState([]);
@@ -43,6 +52,35 @@ function StaffDashboard() {
   const [voucherError, setVoucherError] = useState('');
   const [checkingVoucher, setCheckingVoucher] = useState(false);
 
+  // Reservation Management state
+  const [reservations, setReservations] = useState([]);
+  const [resFilterDate, setResFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [resFilterSlot, setResFilterSlot] = useState('');
+  const [resFilterStatus, setResFilterStatus] = useState('');
+  const [slotAvailability, setSlotAvailability] = useState([]);
+  const [updatingResId, setUpdatingResId] = useState(null);
+  const [tableViewDate, setTableViewDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [tableViewSlot, setTableViewSlot] = useState('');
+  const [tableSlotAvailability, setTableSlotAvailability] = useState([]);
+
+  // Modal tạo đặt bàn mới (Staff)
+  const [showCreateResModal, setShowCreateResModal] = useState(false);
+  const [newResForm, setNewResForm] = useState({
+    tableId: '',
+    customerName: '',
+    customerPhone: '',
+    guestCount: 2,
+    reservationDate: new Date().toISOString().split('T')[0],
+    timeSlot: '11:00 - 12:30',
+    note: '',
+  });
+  const [creatingRes, setCreatingRes] = useState(false);
+  const [staffOrderReservation, setStaffOrderReservation] = useState(null);
+  const [staffMenuItems, setStaffMenuItems] = useState([]);
+  const [staffCart, setStaffCart] = useState([]);
+  const [staffOrderNote, setStaffOrderNote] = useState('');
+  const [creatingStaffOrder, setCreatingStaffOrder] = useState(false);
+
   useEffect(() => {
     fetchData();
     // Tạm dừng polling khi tab bị ẩn (thu nhỏ / chuyển tab khác) để tiết kiệm request
@@ -52,6 +90,43 @@ function StaffDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  const fetchReservations = async () => {
+    try {
+      const params = {};
+      if (resFilterDate) params.date = resFilterDate;
+      if (resFilterSlot) params.timeSlot = resFilterSlot;
+      if (resFilterStatus) params.status = resFilterStatus;
+
+      const [resList, slotsData] = await Promise.all([
+        axiosClient.get('/staff/reservations', { params }),
+        axiosClient.get('/staff/reservations/availability', { params: { date: resFilterDate } }),
+      ]);
+      setReservations(resList || []);
+      setSlotAvailability(slotsData || []);
+    } catch (err) {
+      console.error('Lỗi tải danh sách đặt bàn:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reservations') {
+      fetchReservations();
+    }
+  }, [resFilterDate, resFilterSlot, resFilterStatus, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'tables') return;
+    axiosClient.get('/staff/reservations/availability', { params: { date: tableViewDate } })
+      .then((data) => {
+        const slots = data || [];
+        setTableSlotAvailability(slots);
+        if (slots.length > 0 && !slots.some((slot) => slot.timeSlot === tableViewSlot)) {
+          setTableViewSlot(slots[0].timeSlot);
+        }
+      })
+      .catch((err) => console.error('Lỗi tải lịch đặt bàn:', err));
+  }, [activeTab, tableViewDate]);
+
   const fetchData = async () => {
     try {
       const [ordersData, tablesData] = await Promise.all([
@@ -60,10 +135,112 @@ function StaffDashboard() {
       ]);
       setOrders(ordersData);
       setTables(tablesData);
+      fetchReservations();
     } catch (err) {
       console.error("Lỗi cập nhật dữ liệu Staff Dashboard:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateReservationStatus = async (resId, newStatus) => {
+    setUpdatingResId(resId);
+    try {
+      await axiosClient.put(`/staff/reservations/${resId}/status?status=${newStatus}`);
+      fetchReservations();
+      // Bàn có thể đã chuyển sang OCCUPIED (khi ARRIVED) hoặc AVAILABLE (khi COMPLETED)
+      const tablesData = await axiosClient.get('/staff/tables');
+      setTables(tablesData);
+    } catch (err) {
+      notify("Lỗi đổi trạng thái đặt bàn: " + (err.response?.data?.message || err.message));
+    } finally {
+      setUpdatingResId(null);
+    }
+  };
+
+  const handleCreateReservationSubmit = async (e) => {
+    e.preventDefault();
+    if (!newResForm.customerName.trim() || !newResForm.customerPhone.trim()) {
+      notify("Vui lòng điền họ tên và số điện thoại khách!");
+      return;
+    }
+    setCreatingRes(true);
+    try {
+      const payload = {
+        tableId: newResForm.tableId ? Number(newResForm.tableId) : null,
+        customerName: newResForm.customerName.trim(),
+        customerPhone: newResForm.customerPhone.trim(),
+        guestCount: Number(newResForm.guestCount),
+        reservationDate: newResForm.reservationDate,
+        timeSlot: newResForm.timeSlot,
+        note: newResForm.note.trim(),
+      };
+      await axiosClient.post('/staff/reservations', payload);
+      setShowCreateResModal(false);
+      setNewResForm({
+        tableId: '',
+        customerName: '',
+        customerPhone: '',
+        guestCount: 2,
+        reservationDate: new Date().toISOString().split('T')[0],
+        timeSlot: '11:00 - 12:30',
+        note: '',
+      });
+      fetchReservations();
+      notify("Tạo lượt đặt bàn thành công!");
+    } catch (err) {
+      notify("Lỗi tạo đặt bàn: " + (err.response?.data?.message || err.message));
+    } finally {
+      setCreatingRes(false);
+    }
+  };
+
+  const handleOpenStaffOrder = async (reservation) => {
+    try {
+      const menu = await axiosClient.get('/customer/menu');
+      setStaffMenuItems(menu || []);
+      setStaffCart([]);
+      setStaffOrderNote('');
+      setStaffOrderReservation(reservation);
+    } catch (err) {
+      notify('Không tải được thực đơn: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleAddStaffOrderItem = (menuItemId, change) => {
+    setStaffCart((cart) => {
+      const current = cart.find((item) => item.menuItemId === menuItemId);
+      if (!current && change > 0) return [...cart, { menuItemId, quantity: 1, note: null }];
+      if (!current) return cart;
+      const quantity = current.quantity + change;
+      return quantity < 1
+        ? cart.filter((item) => item.menuItemId !== menuItemId)
+        : cart.map((item) => item.menuItemId === menuItemId ? { ...item, quantity } : item);
+    });
+  };
+
+  const handleCreateStaffOrder = async (e) => {
+    e.preventDefault();
+    if (!staffOrderReservation || staffCart.length === 0) {
+      notify('Chọn ít nhất một món để tạo đơn!');
+      return;
+    }
+    setCreatingStaffOrder(true);
+    try {
+      await axiosClient.post('/staff/orders', {
+        orderType: 'DINE_IN',
+        tableId: staffOrderReservation.tableId,
+        contactPhone: staffOrderReservation.customerPhone,
+        customerNote: staffOrderNote.trim() || null,
+        items: staffCart,
+      });
+      setStaffOrderReservation(null);
+      await fetchData();
+      notify('Đã tạo đơn cho bàn ' + staffOrderReservation.tableNumber + '!');
+    } catch (err) {
+      notify('Lỗi tạo đơn: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setCreatingStaffOrder(false);
     }
   };
 
@@ -72,7 +249,7 @@ function StaffDashboard() {
       await axiosClient.patch(`/staff/orders/${orderId}/status?status=${newStatus}`);
       fetchData();
     } catch (err) {
-      alert("Lỗi đổi trạng thái đơn hàng: " + (err.response?.data?.message || err.message));
+      notify("Lỗi đổi trạng thái đơn hàng: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -81,7 +258,7 @@ function StaffDashboard() {
       await axiosClient.patch(`/staff/orders/items/${orderItemId}/status?status=${newStatus}`);
       fetchData();
     } catch (err) {
-      alert("Lỗi đổi trạng thái món ăn: " + (err.response?.data?.message || err.message));
+      notify("Lỗi đổi trạng thái món ăn: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -90,7 +267,7 @@ function StaffDashboard() {
       await axiosClient.patch(`/staff/tables/${tableId}/status?status=${newStatus}`);
       fetchData();
     } catch (err) {
-      alert("Lỗi đổi trạng thái bàn: " + (err.response?.data?.message || err.message));
+      notify("Lỗi đổi trạng thái bàn: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -113,6 +290,9 @@ function StaffDashboard() {
         params: { code: voucherCodeInput.trim(), orderAmount: selectedOrderForPayment.totalAmount },
       });
       setAppliedVoucher(data);
+      if (paymentMethod === 'BANK_TRANSFER' && selectedOrderForPayment) {
+        handleFetchBankQr(selectedOrderForPayment.id, data.code);
+      }
     } catch (err) {
       setAppliedVoucher(null);
       setVoucherError(err.response?.data?.message || 'Mã voucher không hợp lệ!');
@@ -121,14 +301,16 @@ function StaffDashboard() {
     }
   };
 
-  const handleFetchBankQr = async (orderId) => {
+  const handleFetchBankQr = async (orderId, voucherCode = null) => {
     setLoadingQr(true);
     setBankQr(null);
     try {
-      const data = await axiosClient.get(`/staff/payment/qr/${orderId}`);
+      const data = await axiosClient.get(`/staff/payment/qr/${orderId}`, {
+        params: voucherCode ? { voucherCode } : {},
+      });
       setBankQr(data);
     } catch (err) {
-      alert('Lỗi tạo mã QR: ' + (err.response?.data?.message || err.message));
+      notify('Lỗi tạo mã QR: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoadingQr(false);
     }
@@ -144,12 +326,12 @@ function StaffDashboard() {
         voucherCode: appliedVoucher ? appliedVoucher.code : null,
       });
 
-      alert(`Thanh toán thành công Đơn ${selectedOrderForPayment.orderCode}!` + (selectedOrderForPayment.orderType === 'DINE_IN' ? ` Bàn B${String(selectedOrderForPayment.tableId).padStart(2, '0')} đã được tự động giải phóng.` : ''));
+      notify(`Thanh toán thành công Đơn ${selectedOrderForPayment.orderCode}!` + (selectedOrderForPayment.orderType === 'DINE_IN' ? ` Bàn B${String(selectedOrderForPayment.tableId).padStart(2, '0')} đã được tự động giải phóng.` : ''));
       setShowReceiptModal(false);
       setSelectedOrderForPayment(null);
       fetchData();
     } catch (err) {
-      alert("Lỗi xử lý thanh toán: " + (err.response?.data?.message || err.message));
+      notify("Lỗi xử lý thanh toán: " + (err.response?.data?.message || err.message));
     } finally {
       setProcessingPayment(false);
     }
@@ -172,7 +354,7 @@ function StaffDashboard() {
   const payingTablesCount = tables.filter((t) => t.status === 'PAYING').length;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navbar */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-30 shadow-lg">
         <div className="flex items-center gap-3">
@@ -222,6 +404,16 @@ function StaffDashboard() {
               }`}
             >
               💳 Thanh Toán {payingTablesCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] animate-bounce">{payingTablesCount}</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab('reservations')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === 'reservations'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
+                  : 'text-orange-400 hover:text-orange-300'
+              }`}
+            >
+              📅 Đặt Bàn ({reservations.length})
             </button>
           </div>
 
@@ -441,10 +633,40 @@ function StaffDashboard() {
                   <span className="text-purple-400 font-bold">Yêu Cầu Thanh Toán</span>
                 </div>
               </div>
+
+              <div className="w-full flex flex-wrap items-end gap-3 border-t border-slate-800 pt-4">
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1">Ngày cần xem</label>
+                  <input
+                    type="date"
+                    value={tableViewDate}
+                    onChange={(e) => setTableViewDate(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1">Khung giờ khách muốn đặt</label>
+                  <select
+                    value={tableViewSlot}
+                    onChange={(e) => setTableViewSlot(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+                  >
+                    {tableSlotAvailability.map((slot) => (
+                      <option key={slot.timeSlot} value={slot.timeSlot}>{slot.timeSlot}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-400 pb-2">Sơ đồ vẫn hiển thị trạng thái phục vụ hiện tại; thông tin đặt trước áp dụng cho ngày và khung giờ đã chọn.</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
               {tables.map((table) => (
+                (() => {
+                  const slotTable = tableSlotAvailability
+                    .find((slot) => slot.timeSlot === tableViewSlot)
+                    ?.tables?.find((item) => String(item.tableId) === String(table.id));
+                  return (
                 <div
                   key={table.id}
                   className={`bg-slate-900 border rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-4 transition ${
@@ -483,6 +705,13 @@ function StaffDashboard() {
                     )}
                   </div>
 
+                  <div className={`rounded-xl border p-2.5 ${slotTable?.reservationId ? 'bg-orange-500/10 border-orange-500/30' : 'bg-slate-950 border-slate-800'}`}>
+                    <p className="text-[10px] font-bold text-slate-300">
+                      {tableViewSlot || 'Khung giờ'} · {slotTable?.reservationId ? 'ĐÃ CÓ KHÁCH ĐẶT' : 'CHƯA CÓ ĐẶT BÀN'}
+                    </p>
+                    {slotTable?.bookedBy && <p className="text-[10px] text-orange-300 mt-1">{slotTable.bookedBy}</p>}
+                  </div>
+
                   <div className="pt-2 border-t border-slate-800 grid grid-cols-3 gap-1 text-[10px] font-bold">
                     <button
                       onClick={() => handleUpdateTableStatus(table.id, 'AVAILABLE')}
@@ -516,6 +745,8 @@ function StaffDashboard() {
                     </button>
                   </div>
                 </div>
+                  );
+                })()
               ))}
             </div>
           </div>
@@ -582,7 +813,294 @@ function StaffDashboard() {
             </div>
           </div>
         )}
+
+        {/* TAB 4: RESERVATION MANAGEMENT (THEO KHUNG GIỜ) */}
+        {activeTab === 'reservations' && (
+          <div className="space-y-6">
+            {/* Top Bar with Filter & Create Button */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-orange-400" />
+                  Quản Lý Đặt Bàn Theo Khung Giờ
+                </h3>
+                <p className="text-xs text-slate-400">Kiểm tra bàn trống theo khung giờ, duyệt đặt bàn và nhận khách đến</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Filter Date */}
+                <input
+                  type="date"
+                  value={resFilterDate}
+                  onChange={(e) => setResFilterDate(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 text-xs text-white rounded-xl px-3 py-2 outline-none focus:border-orange-500 font-bold"
+                />
+
+                {/* Filter Time Slot */}
+                <select
+                  value={resFilterSlot}
+                  onChange={(e) => setResFilterSlot(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 text-xs text-white rounded-xl px-3 py-2 outline-none focus:border-orange-500"
+                >
+                  <option value="">Tất Cả Khung Giờ</option>
+                  <option value="09:00 - 10:30">09:00 - 10:30 (Sáng)</option>
+                  <option value="11:00 - 12:30">11:00 - 12:30 (Trưa 1)</option>
+                  <option value="12:30 - 14:00">12:30 - 14:00 (Trưa 2)</option>
+                  <option value="17:30 - 19:00">17:30 - 19:00 (Tối 1)</option>
+                  <option value="19:00 - 20:30">19:00 - 20:30 (Tối 2)</option>
+                  <option value="20:30 - 22:00">20:30 - 22:00 (Tối 3)</option>
+                </select>
+
+                {/* Filter Status */}
+                <select
+                  value={resFilterStatus}
+                  onChange={(e) => setResFilterStatus(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 text-xs text-white rounded-xl px-3 py-2 outline-none focus:border-orange-500"
+                >
+                  <option value="">Tất Cả Trạng Thái</option>
+                  <option value="PENDING">Chờ Xác Nhận</option>
+                  <option value="CONFIRMED">Đã Xác Nhận</option>
+                  <option value="ARRIVED">Khách Đã Đến</option>
+                  <option value="COMPLETED">Đã Hoàn Tất</option>
+                  <option value="CANCELLED">Đã Hủy</option>
+                </select>
+
+                <button
+                  onClick={() => setShowCreateResModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tạo Đặt Bàn</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <p className="text-xs text-slate-400 font-semibold">Tổng Lượt Đặt</p>
+                <p className="text-2xl font-black text-white mt-1">{reservations.length}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <p className="text-xs text-amber-400 font-semibold">Chờ Duyệt (PENDING)</p>
+                <p className="text-2xl font-black text-amber-400 mt-1">
+                  {reservations.filter((r) => r.status === 'PENDING').length}
+                </p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <p className="text-xs text-emerald-400 font-semibold">Đã Xác Nhận</p>
+                <p className="text-2xl font-black text-emerald-400 mt-1">
+                  {reservations.filter((r) => r.status === 'CONFIRMED').length}
+                </p>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <p className="text-xs text-blue-400 font-semibold">Khách Đã Đến</p>
+                <p className="text-2xl font-black text-blue-400 mt-1">
+                  {reservations.filter((r) => r.status === 'ARRIVED').length}
+                </p>
+              </div>
+            </div>
+
+            {/* Time Slot Table Availability Overview */}
+            {slotAvailability.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <p className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-orange-400" />
+                  Tình Trạng Bàn Theo Khung Giờ (Ngày {resFilterDate}):
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                  {slotAvailability.map((s) => (
+                    <div
+                      key={s.timeSlot}
+                      onClick={() => setResFilterSlot(resFilterSlot === s.timeSlot ? '' : s.timeSlot)}
+                      className={`p-2.5 rounded-xl border text-center cursor-pointer transition ${
+                        resFilterSlot === s.timeSlot
+                          ? 'bg-orange-600/20 border-orange-500 text-white shadow-md'
+                          : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <p className="text-[10px] text-slate-400">{s.label.split('(')[0]}</p>
+                      <p className="font-extrabold text-xs text-white my-0.5">{s.timeSlot}</p>
+                      <p className={`text-[10px] font-bold ${s.availableTablesCount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {s.availableTablesCount > 0 ? `${s.availableTablesCount} bàn trống` : 'Hết bàn'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reservations Cards List */}
+            {reservations.length === 0 ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center text-slate-500 text-xs">
+                Không tìm thấy lượt đặt bàn nào phù hợp với bộ lọc.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {reservations.map((res) => {
+                  const statusInfo = {
+                    PENDING: { text: 'Chờ Xác Nhận', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+                    CONFIRMED: { text: 'Đã Xác Nhận', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+                    ARRIVED: { text: 'Khách Đã Đến', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+                    COMPLETED: { text: 'Đã Hoàn Tất', color: 'bg-slate-800 text-slate-300 border-slate-700' },
+                    CANCELLED: { text: 'Đã Hủy', color: 'bg-red-500/10 text-red-400 border-red-500/20' },
+                  }[res.status] || { text: res.status, color: 'bg-slate-800 text-slate-400 border-slate-700' };
+
+                  return (
+                    <div key={res.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-3.5 flex flex-col justify-between">
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                          <span className="font-mono font-bold text-amber-400 text-xs">{res.reservationCode}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusInfo.color}`}>
+                            {statusInfo.text}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 font-extrabold text-xs flex items-center justify-center">
+                              {res.tableNumber || '?'}
+                            </span>
+                            <div>
+                              <p className="text-white font-bold text-xs">
+                                Bàn {res.tableNumber || 'Chưa gán bàn'} {res.tableCapacity ? `(${res.tableCapacity} chỗ)` : ''}
+                              </p>
+                              <p className="text-[10px] text-slate-400">{res.guestCount} Khách</p>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <p className="font-bold text-xs text-white">{res.timeSlot}</p>
+                            <p className="text-[10px] text-slate-400">{res.reservationDate}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1 text-xs">
+                          <p className="text-slate-300 font-bold truncate">Khách: {res.customerName}</p>
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <Phone className="w-3 h-3 text-emerald-400" />
+                            <a href={`tel:${res.customerPhone}`} className="text-blue-400 hover:underline">{res.customerPhone}</a>
+                          </p>
+                          {res.note && (
+                            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800">
+                              "{res.note}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5 text-xs">
+                        {res.status === 'PENDING' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateReservationStatus(res.id, 'CONFIRMED')}
+                              disabled={updatingResId === res.id}
+                              className="flex-1 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition"
+                            >
+                              ✓ Xác Nhận
+                            </button>
+                            <button
+                              onClick={() => handleUpdateReservationStatus(res.id, 'CANCELLED')}
+                              disabled={updatingResId === res.id}
+                              className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-[11px] transition"
+                            >
+                              Hủy
+                            </button>
+                          </>
+                        )}
+
+                        {res.status === 'CONFIRMED' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateReservationStatus(res.id, 'ARRIVED')}
+                              disabled={updatingResId === res.id}
+                              className="flex-1 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
+                              title="Khách đã đến nhận bàn (tự động chuyển bàn sang OCCUPIED)"
+                            >
+                              🍽️ Nhận Bàn (Check-in)
+                            </button>
+                            <button
+                              onClick={() => handleUpdateReservationStatus(res.id, 'CANCELLED')}
+                              disabled={updatingResId === res.id}
+                              className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-[11px] transition"
+                            >
+                              Hủy
+                            </button>
+                          </>
+                        )}
+
+                        {res.status === 'ARRIVED' && (
+                          <>
+                            <button
+                              onClick={() => handleOpenStaffOrder(res)}
+                              className="flex-1 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-[11px] transition"
+                            >
+                              + Tạo đơn món
+                            </button>
+                            <button
+                              onClick={() => handleUpdateReservationStatus(res.id, 'COMPLETED')}
+                              disabled={updatingResId === res.id}
+                              className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-[11px] border border-slate-700 transition"
+                            >
+                              ✓ Hoàn Tất Dùng Bữa
+                            </button>
+                          </>
+                        )}
+
+                        {(res.status === 'COMPLETED' || res.status === 'CANCELLED') && (
+                          <span className="w-full text-center text-[10px] text-slate-500 italic py-1">
+                            Lượt đặt bàn đã kết thúc
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </main>
+
+      {staffOrderReservation && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form onSubmit={handleCreateStaffOrder} className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-white font-bold">Tạo đơn cho bàn {staffOrderReservation.tableNumber}</h2>
+                <p className="text-xs text-slate-400">Đặt bàn {staffOrderReservation.reservationCode} · {staffOrderReservation.customerName}</p>
+              </div>
+              <button type="button" onClick={() => setStaffOrderReservation(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 overflow-y-auto space-y-4">
+              <div className="grid sm:grid-cols-2 gap-2">
+                {staffMenuItems.map((item) => {
+                  const cartItem = staffCart.find((entry) => entry.menuItemId === item.id);
+                  return (
+                    <div key={item.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{item.name}</p>
+                        <p className="text-[11px] text-orange-300">{formatVND(item.price)}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {cartItem && <button type="button" onClick={() => handleAddStaffOrderItem(item.id, -1)} className="p-1 rounded bg-slate-800 text-white"><Minus className="w-3 h-3" /></button>}
+                        {cartItem && <span className="text-white text-xs font-bold">{cartItem.quantity}</span>}
+                        <button type="button" onClick={() => handleAddStaffOrderItem(item.id, 1)} className="p-1 rounded bg-orange-600 text-white"><Plus className="w-3 h-3" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <textarea value={staffOrderNote} onChange={(e) => setStaffOrderNote(e.target.value)} placeholder="Ghi chú cho bếp (không bắt buộc)" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" rows={2} />
+            </div>
+            <div className="p-5 border-t border-slate-800 flex justify-end gap-2">
+              <button type="button" onClick={() => setStaffOrderReservation(null)} className="px-4 py-2 rounded-lg text-slate-300 bg-slate-800">Đóng</button>
+              <button type="submit" disabled={creatingStaffOrder || staffCart.length === 0} className="px-4 py-2 rounded-lg text-white font-bold bg-orange-600 disabled:opacity-50">{creatingStaffOrder ? 'Đang tạo…' : 'Tạo đơn'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* PAYMENT & INVOICE RECEIPT MODAL */}
       {showReceiptModal && selectedOrderForPayment && (
@@ -628,9 +1146,19 @@ function StaffDashboard() {
                 ))}
               </div>
 
-              <div className="flex justify-between font-black text-sm pt-1 text-slate-900">
-                <span>TỔNG CỘNG:</span>
-                <span className="text-orange-600">{formatVND(selectedOrderForPayment.totalAmount)}</span>
+              <div className="flex justify-between text-[11px] text-slate-700">
+                <span>Tạm tính:</span>
+                <span>{formatVND(selectedOrderForPayment.totalAmount)}</span>
+              </div>
+              {appliedVoucher && (
+                <div className="flex justify-between text-[11px] font-bold text-emerald-700">
+                  <span>Giảm giá ({appliedVoucher.code}):</span>
+                  <span>-{formatVND(appliedVoucher.discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-black text-sm pt-1 text-slate-900 border-t border-slate-300">
+                <span>KHÁCH CẦN TRẢ:</span>
+                <span className="text-orange-600">{formatVND(selectedOrderForPayment.totalAmount - (appliedVoucher?.discountAmount || 0))}</span>
               </div>
             </div>
 
@@ -641,7 +1169,7 @@ function StaffDashboard() {
                 <input
                   type="text"
                   value={voucherCodeInput}
-                  onChange={(e) => { setVoucherCodeInput(e.target.value.toUpperCase()); setAppliedVoucher(null); setVoucherError(''); }}
+                  onChange={(e) => { setVoucherCodeInput(e.target.value.toUpperCase()); setAppliedVoucher(null); setBankQr(null); setVoucherError(''); }}
                   placeholder="Nhập mã voucher..."
                   className="flex-1 bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 outline-none uppercase"
                 />
@@ -682,7 +1210,7 @@ function StaffDashboard() {
 
                 <button
                   type="button"
-                  onClick={() => { setPaymentMethod('BANK_TRANSFER'); handleFetchBankQr(selectedOrderForPayment.id); }}
+                  onClick={() => { setPaymentMethod('BANK_TRANSFER'); handleFetchBankQr(selectedOrderForPayment.id, appliedVoucher?.code); }}
                   className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
                     paymentMethod === 'BANK_TRANSFER'
                       ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow'
@@ -751,6 +1279,142 @@ function StaffDashboard() {
                 <span>{processingPayment ? 'Đang Xử Lý...' : 'XÁC NHẬN ĐÃ THU TIỀN'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TẠO LƯỢT ĐẶT BÀN MỚI CHO STAFF */}
+      {showCreateResModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-orange-600/20 text-orange-400 border border-orange-500/30 flex items-center justify-center">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Tạo Lượt Đặt Bàn Cho Khách</h3>
+                  <p className="text-xs text-slate-400">Dành cho khách gọi điện thoại hoặc đặt trực tiếp tại quầy</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCreateResModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateReservationSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Ngày Đến (*):</label>
+                  <input
+                    type="date"
+                    required
+                    min={new Date().toISOString().split('T')[0]}
+                    value={newResForm.reservationDate}
+                    onChange={(e) => setNewResForm({ ...newResForm, reservationDate: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Khung Giờ (*):</label>
+                  <select
+                    value={newResForm.timeSlot}
+                    onChange={(e) => setNewResForm({ ...newResForm, timeSlot: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  >
+                    <option value="09:00 - 10:30">09:00 - 10:30 (Sáng)</option>
+                    <option value="11:00 - 12:30">11:00 - 12:30 (Trưa 1)</option>
+                    <option value="12:30 - 14:00">12:30 - 14:00 (Trưa 2)</option>
+                    <option value="17:30 - 19:00">17:30 - 19:00 (Tối 1)</option>
+                    <option value="19:00 - 20:30">19:00 - 20:30 (Tối 2)</option>
+                    <option value="20:30 - 22:00">20:30 - 22:00 (Tối 3)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Chọn Bàn (Tùy chọn):</label>
+                  <select
+                    value={newResForm.tableId}
+                    onChange={(e) => setNewResForm({ ...newResForm, tableId: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  >
+                    <option value="">-- Quán tự sắp xếp bàn --</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        Bàn {t.tableNumber} ({t.capacity} chỗ)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Số Lượng Khách (*):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    required
+                    value={newResForm.guestCount}
+                    onChange={(e) => setNewResForm({ ...newResForm, guestCount: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Tên Khách Hàng (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Anh Tuấn..."
+                    value={newResForm.customerName}
+                    onChange={(e) => setNewResForm({ ...newResForm, customerName: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Số Điện Thoại (*):</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ví dụ: 0901234567..."
+                    value={newResForm.customerPhone}
+                    onChange={(e) => setNewResForm({ ...newResForm, customerPhone: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Ghi Chú Yêu Cầu:</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Cần chuẩn bị hoa sinh nhật, 1 ghế trẻ em..."
+                  value={newResForm.note}
+                  onChange={(e) => setNewResForm({ ...newResForm, note: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-orange-500 rounded-xl p-2.5 text-white outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateResModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingRes}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 text-white font-bold shadow-md shadow-orange-500/20 disabled:opacity-50"
+                >
+                  {creatingRes ? 'Đang tạo...' : 'Lưu Đặt Bàn'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -7,6 +7,9 @@ import com.restaurant.entity.MenuItem;
 import com.restaurant.enums.MenuItemStatus;
 import com.restaurant.repository.CategoryRepository;
 import com.restaurant.repository.MenuItemRepository;
+import com.restaurant.repository.ProductRecipeRepository;
+import com.restaurant.entity.ProductRecipe;
+import com.restaurant.entity.ProductDetail;
 import com.restaurant.service.MenuItemService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     private final MenuItemRepository menuItemRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductRecipeRepository productRecipeRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -50,8 +54,20 @@ public class MenuItemServiceImpl implements MenuItemService {
         }
 
         return items.stream()
+                .filter(this::hasAvailableIngredients)
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasAvailableIngredients(MenuItem item) {
+        List<ProductRecipe> recipes = productRecipeRepository.findByProductId(item.getId());
+        return recipes.stream().allMatch(recipe -> {
+            ProductDetail detail = recipe.getIngredientDetail();
+            return detail != null
+                    && detail.getStatus() == com.restaurant.enums.ProductDetailStatus.ACTIVE
+                    && detail.getStockQuantity() != null
+                    && detail.getStockQuantity() >= (recipe.getQuantity() == null ? 0.0 : recipe.getQuantity());
+        });
     }
 
     @Override

@@ -41,8 +41,11 @@ public class TableServiceImpl implements TableService {
     @Override
     @Transactional
     public TableResponse updateTableStatus(Long id, TableStatus status) {
-        RestaurantTable table = tableRepository.findById(id)
+        RestaurantTable table = tableRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + id));
+        if (status == TableStatus.AVAILABLE && !orderRepository.findActiveOrdersByTableId(id).isEmpty()) {
+            throw new RuntimeException("Không thể mở bàn khi còn đơn hàng chưa thanh toán hoặc chưa hoàn tất!");
+        }
         table.setStatus(status);
         RestaurantTable updated = tableRepository.save(table);
         return mapToResponse(updated);
@@ -71,7 +74,7 @@ public class TableServiceImpl implements TableService {
     @Override
     @Transactional
     public TableResponse updateTable(Long id, TableRequest request) {
-        RestaurantTable table = tableRepository.findById(id)
+        RestaurantTable table = tableRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn với ID: " + id));
 
         if (!table.getTableNumber().equals(request.getTableNumber())
@@ -82,6 +85,9 @@ public class TableServiceImpl implements TableService {
         table.setTableNumber(request.getTableNumber());
         table.setCapacity(request.getCapacity());
         if (request.getStatus() != null) {
+            if (request.getStatus() == TableStatus.AVAILABLE && !orderRepository.findActiveOrdersByTableId(id).isEmpty()) {
+                throw new RuntimeException("Không thể mở bàn khi còn đơn hàng chưa thanh toán hoặc chưa hoàn tất!");
+            }
             table.setStatus(request.getStatus());
         }
 

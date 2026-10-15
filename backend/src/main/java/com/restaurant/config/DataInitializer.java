@@ -9,6 +9,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Component
-@Profile("dev")
+@Profile({"dev", "prod"})
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer implements CommandLineRunner {
@@ -32,15 +33,21 @@ public class DataInitializer implements CommandLineRunner {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PurchaseOrderItemRepository purchaseOrderItemRepository;
     private final ReservationRepository reservationRepository;
+    private final Environment environment;
 
     @Override
     @Transactional
     public void run(String... args) throws Exception {
-        seedUsers();
-        seedTables();
+        boolean development = Arrays.asList(environment.getActiveProfiles()).contains("dev");
+        if (development) {
+            seedUsers();
+            seedTables();
+        }
         seedCategoriesAndMenuItems();
-        seedInventoryAndPurchases();
-        seedReservations();
+        if (development) {
+            seedInventoryAndPurchases();
+            seedReservations();
+        }
     }
 
     private void seedUsers() {

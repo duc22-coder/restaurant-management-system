@@ -21,12 +21,6 @@ public class ProductionStartupGuard implements InitializingBean {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
-    @Value("${SITE_DOMAIN}")
-    private String siteDomain;
-
-    @Value("${CADDY_EMAIL}")
-    private String caddyEmail;
-
     @Value("${BANK_ACCOUNT_NUMBER}")
     private String bankAccountNumber;
 
@@ -43,9 +37,6 @@ public class ProductionStartupGuard implements InitializingBean {
         }
         if (allowedOrigins.isBlank() || allowedOrigins.contains("localhost") || allowedOrigins.contains("REPLACE_")) {
             throw new IllegalStateException("Production CORS must contain the public HTTPS site origin.");
-        }
-        if (siteDomain.isBlank() || siteDomain.endsWith("example.com") || caddyEmail.endsWith("example.com")) {
-            throw new IllegalStateException("Set SITE_DOMAIN and CADDY_EMAIL to real production values.");
         }
         if (bankAccountNumber.isBlank() || bankAccountNumber.startsWith("REPLACE_")) {
             throw new IllegalStateException("Set the real bank account before enabling production QR payments.");

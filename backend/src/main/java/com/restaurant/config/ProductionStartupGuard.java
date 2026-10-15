@@ -29,8 +29,8 @@ public class ProductionStartupGuard implements InitializingBean {
         if (jwtSecret.length() < 64 || jwtSecret.startsWith("REPLACE_")) {
             throw new IllegalStateException("Production JWT_SECRET must be a unique random value of at least 64 characters.");
         }
-        if (databasePassword.length() < 24 || databasePassword.startsWith("REPLACE_")) {
-            throw new IllegalStateException("Production MYSQL_PASSWORD must be a unique value of at least 24 characters.");
+        if (databasePassword.length() < 16 || databasePassword.startsWith("REPLACE_")) {
+            throw new IllegalStateException("Production MYSQL_PASSWORD must be a unique value of at least 16 characters.");
         }
         if (databaseUrl.contains("localhost") || databaseUrl.contains("restaurant_password")) {
             throw new IllegalStateException("Production datasource must point to the configured production database.");

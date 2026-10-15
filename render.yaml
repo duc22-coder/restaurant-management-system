@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: restaurant-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: PROD_DATABASE_URL
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: BANK_BIN
+        sync: false
+      - key: BANK_ACCOUNT_NUMBER
+        sync: false
+      - key: BANK_ACCOUNT_NAME
+        sync: false
+      - key: INITIAL_ADMIN_USERNAME
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

@@ -77,6 +77,18 @@ Production cần máy chủ Linux/Docker, domain có DNS trỏ tới máy chủ,
 
 Caddy nhận lưu lượng public và cấp/gia hạn HTTPS tự động. Backend và MySQL không publish cổng ra host. Production profile từ chối secret mặc định, cấu hình domain/CORS chưa hợp lệ và tài khoản demo còn tồn tại.
 
+## Deploy frontend lên Vercel và backend lên Render
+
+Repo có thể deploy tách frontend/backend bằng `frontend/vercel.json` và `render.yaml` ở thư mục gốc:
+
+1. Tạo một MySQL 8 bên ngoài Render hoặc tự vận hành MySQL có persistent storage. Lấy JDBC URL, ví dụ `jdbc:mysql://<host>:3306/<database>?serverTimezone=UTC`, cùng username/password. Database phải cho phép kết nối từ Render; dùng TLS nếu nhà cung cấp hỗ trợ.
+2. Trên Render, tạo Blueprint từ repository này và nhập các biến được đánh dấu `sync: false`. Dùng JDBC URL ở `PROD_DATABASE_URL`, tài khoản DB ở `MYSQL_USER`/`MYSQL_PASSWORD`, và khai báo thông tin ngân hàng. Render tự tạo `JWT_SECRET`. Backend nhận cổng từ `PORT` và có health check tại `/api/health`.
+3. Lần đầu deploy cần `INITIAL_ADMIN_USERNAME` và `INITIAL_ADMIN_PASSWORD` mạnh (ít nhất 16 ký tự). Sau khi admin được tạo, xóa hai biến này khỏi service trên Render.
+4. Trên Vercel, import cùng repository và đặt **Root Directory** là `frontend`. Dùng build command `npm run build`, output `dist`, và thêm biến `VITE_API_BASE_URL=https://<backend>.onrender.com/api` trước khi build.
+5. Sau khi Vercel cấp domain `*.vercel.app`, đặt `CORS_ALLOWED_ORIGINS` của backend đúng bằng origin đó (chỉ scheme + host, không có `/api`), rồi redeploy backend. `frontend/vercel.json` đưa các đường dẫn React Router về `index.html`.
+
+Không commit credentials vào repository. Cấu hình này chưa tạo MySQL tự động; Render cung cấp hướng dẫn chạy MySQL bằng Docker và persistent disk, còn dịch vụ DB bên ngoài thường dễ vận hành hơn cho bước đầu. Nếu dùng DB bên ngoài, kiểm tra firewall/allowlist và bật TLS theo hướng dẫn nhà cung cấp.
+
 ## Database và migration
 
 - `backend/src/main/resources/db/migration/V1__initial_schema.sql` tạo schema ban đầu cho database mới.

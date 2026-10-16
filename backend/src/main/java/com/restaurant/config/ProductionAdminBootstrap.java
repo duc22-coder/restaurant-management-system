@@ -27,18 +27,32 @@ public class ProductionAdminBootstrap implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        rejectSeededDemoCredentials("admin", "admin123");
-        rejectSeededDemoCredentials("staff", "staff123");
-        if (!userRepository.findByRole(Role.ADMIN).isEmpty()) return;
+        disableSeededDemoCredentials("admin", "admin123");
+        disableSeededDemoCredentials("staff", "staff123");
+
+        boolean hasActiveAdmin = userRepository.findByRole(Role.ADMIN).stream()
+                .anyMatch(user -> user.getStatus() == UserStatus.ACTIVE);
+        if (hasActiveAdmin) return;
+
         if (initialAdminUsername.isBlank() || initialAdminPassword.length() < 16
                 || initialAdminPassword.startsWith("REPLACE_")) {
-            throw new IllegalStateException("No ADMIN account exists. Set a one-time INITIAL_ADMIN_USERNAME and a unique INITIAL_ADMIN_PASSWORD (16+ characters), then remove them after startup.");
+            throw new IllegalStateException("No active ADMIN account exists. Set INITIAL_ADMIN_USERNAME and a unique INITIAL_ADMIN_PASSWORD (16+ characters).");
         }
-        if (Boolean.TRUE.equals(userRepository.existsByUsername(initialAdminUsername))) {
-            throw new IllegalStateException("The requested initial admin username already exists with another role.");
+
+        String username = initialAdminUsername.trim();
+        User existingUser = userRepository.findByUsername(username).orElse(null);
+        if (existingUser != null) {
+            if (existingUser.getRole() != Role.ADMIN) {
+                throw new IllegalStateException("The requested initial admin username already exists with another role.");
+            }
+            existingUser.setPassword(passwordEncoder.encode(initialAdminPassword));
+            existingUser.setStatus(UserStatus.ACTIVE);
+            userRepository.save(existingUser);
+            return;
         }
+
         userRepository.save(User.builder()
-                .username(initialAdminUsername.trim())
+                .username(username)
                 .password(passwordEncoder.encode(initialAdminPassword))
                 .fullName("System Administrator")
                 .role(Role.ADMIN)
@@ -46,10 +60,11 @@ public class ProductionAdminBootstrap implements CommandLineRunner {
                 .build());
     }
 
-    private void rejectSeededDemoCredentials(String username, String password) {
+    private void disableSeededDemoCredentials(String username, String password) {
         userRepository.findByUsername(username).ifPresent(user -> {
             if (passwordEncoder.matches(password, user.getPassword())) {
-                throw new IllegalStateException("A development demo account still exists in the production database. Reset its password before deployment.");
+                user.setStatus(UserStatus.INACTIVE);
+                userRepository.save(user);
             }
         });
     }

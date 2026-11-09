@@ -46,6 +46,7 @@ function StaffDashboard() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [bankQr, setBankQr] = useState(null);
+  const [bankTransferStatus, setBankTransferStatus] = useState(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [voucherCodeInput, setVoucherCodeInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null);
@@ -80,6 +81,34 @@ function StaffDashboard() {
   const [staffCart, setStaffCart] = useState([]);
   const [staffOrderNote, setStaffOrderNote] = useState('');
   const [creatingStaffOrder, setCreatingStaffOrder] = useState(false);
+
+  useEffect(() => {
+    if (!showReceiptModal || paymentMethod !== 'BANK_TRANSFER' || !selectedOrderForPayment || !bankQr) return;
+    let active = true;
+    let completedHandled = false;
+    const checkPayment = async () => {
+      try {
+        const payment = await axiosClient.get(`/staff/payment/receipt/${selectedOrderForPayment.id}`);
+        if (!active) return;
+        setBankTransferStatus(payment.status);
+        if (payment.status === 'COMPLETED' && !completedHandled) {
+          completedHandled = true;
+          notify(`Ngân hàng xác nhận đã nhận tiền đơn ${selectedOrderForPayment.orderCode}.`);
+          setShowReceiptModal(false);
+          setSelectedOrderForPayment(null);
+          fetchData();
+        }
+      } catch (err) {
+        if (active) console.error('Lỗi kiểm tra trạng thái chuyển khoản:', err);
+      }
+    };
+    checkPayment();
+    const interval = setInterval(checkPayment, 4000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [showReceiptModal, paymentMethod, selectedOrderForPayment?.id, bankQr?.orderCode]);
 
   useEffect(() => {
     fetchData();
@@ -275,6 +304,7 @@ function StaffDashboard() {
     setSelectedOrderForPayment(order);
     setPaymentMethod('CASH');
     setBankQr(null);
+    setBankTransferStatus(null);
     setVoucherCodeInput('');
     setAppliedVoucher(null);
     setVoucherError('');
@@ -304,6 +334,7 @@ function StaffDashboard() {
   const handleFetchBankQr = async (orderId, voucherCode = null) => {
     setLoadingQr(true);
     setBankQr(null);
+    setBankTransferStatus('PENDING');
     try {
       const data = await axiosClient.get(`/staff/payment/qr/${orderId}`, {
         params: voucherCode ? { voucherCode } : {},
@@ -1248,8 +1279,13 @@ function StaffDashboard() {
                       Đưa mã này cho khách quét bằng <strong className="text-blue-400">app ngân hàng bất kỳ</strong> để chuyển khoản
                     </p>
                     <p className="text-[10px] text-slate-500">Nội dung CK: <span className="font-mono text-amber-400">{bankQr.transferContent}</span></p>
-                    <p className="text-[10px] text-amber-500/80 text-center pt-1">
-                      ⚠️ Sau khi khách chuyển khoản, kiểm tra sao kê/thông báo ngân hàng rồi bấm "Xác Nhận Đã Thu Tiền" bên dưới.
+                    <p className={`text-[11px] text-center pt-1 font-semibold ${bankTransferStatus === 'COMPLETED' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {bankTransferStatus === 'COMPLETED'
+                        ? 'Đã nhận được tiền chuyển khoản.'
+                        : 'Đang chờ ngân hàng xác nhận giao dịch...'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 text-center">
+                      Khi chưa có xác nhận, đơn vẫn ở trạng thái chưa thanh toán. Có thể xác nhận thủ công sau khi đã đối soát sao kê.
                     </p>
                   </>
                 ) : (
@@ -1276,7 +1312,7 @@ function StaffDashboard() {
                 className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 active:scale-95 transition"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{processingPayment ? 'Đang Xử Lý...' : 'XÁC NHẬN ĐÃ THU TIỀN'}</span>
+                <span>{processingPayment ? 'Đang Xử Lý...' : paymentMethod === 'BANK_TRANSFER' ? 'XÁC NHẬN THỦ CÔNG SAU KHI ĐỐI SOÁT' : 'XÁC NHẬN ĐÃ THU TIỀN'}</span>
               </button>
             </div>
           </div>

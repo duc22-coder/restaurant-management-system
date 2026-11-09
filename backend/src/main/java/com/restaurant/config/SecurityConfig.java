@@ -58,7 +58,7 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/error").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/api/webhooks/sepay", "/error").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/customer/categories", "/api/customer/menu", "/api/customer/menu/**",
                         "/api/customer/tables", "/api/customer/reservations/slots").permitAll()
                 .requestMatchers("/api/customer/**").hasRole("CUSTOMER")

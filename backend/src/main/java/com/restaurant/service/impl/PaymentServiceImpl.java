@@ -29,6 +29,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -125,6 +127,72 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional
+    public void processSePayWebhook(String transactionId, String content, BigDecimal amount) {
+        if (transactionId == null || transactionId.isBlank() || amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Giao dịch SePay thiếu mã hoặc số tiền hợp lệ");
+        }
+        if (paymentRepository.findBySepayTransactionId(transactionId).isPresent()) {
+            return;
+        }
+
+        Order order = null;
+        Matcher matcher = Pattern.compile("[\\p{L}\\p{N}_-]+").matcher(content == null ? "" : content);
+        while (matcher.find() && order == null) {
+            order = orderRepository.findByOrderCodeForUpdate(matcher.group()).orElse(null);
+        }
+        if (order == null) {
+            throw new IllegalArgumentException("Không tìm thấy mã đơn hàng trong nội dung chuyển khoản");
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.COMPLETED) {
+            throw new IllegalArgumentException("Đơn hàng đã hủy hoặc đã thanh toán");
+        }
+
+        Payment payment = paymentRepository.findByOrderId(order.getId())
+                .orElseGet(() -> Payment.builder().order(order).build());
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            return;
+        }
+        BigDecimal expectedAmount = payment.getAmount() != null ? payment.getAmount() : order.getTotalAmount();
+        if (amount.compareTo(expectedAmount) != 0) {
+            throw new IllegalArgumentException("Số tiền chuyển khoản không khớp số tiền đơn hàng");
+        }
+
+        BigDecimal discount = payment.getDiscountAmount() != null ? payment.getDiscountAmount() : BigDecimal.ZERO;
+        if (payment.getVoucherCode() != null && !payment.getVoucherCode().isBlank()) {
+            discount = voucherService.applyVoucherAndIncrementUsage(payment.getVoucherCode(), order.getTotalAmount());
+            if (order.getTotalAmount().subtract(discount).compareTo(amount) != 0) {
+                throw new IllegalArgumentException("Số tiền chuyển khoản không khớp voucher của đơn hàng");
+            }
+        }
+
+        payment.setAmount(amount);
+        payment.setDiscountAmount(discount);
+        payment.setPaymentMethod(com.restaurant.enums.PaymentMethod.BANK_TRANSFER);
+        payment.setStatus(PaymentStatus.COMPLETED);
+        payment.setPaidAt(LocalDateTime.now());
+        payment.setSepayTransactionId(transactionId);
+        paymentRepository.save(payment);
+
+        order.setStatus(OrderStatus.COMPLETED);
+        orderRepository.save(order);
+        releaseTableIfNoActiveOrders(order);
+    }
+
+    private void releaseTableIfNoActiveOrders(Order order) {
+        RestaurantTable table = order.getTable();
+        if (table != null) {
+            table = tableRepository.findByIdForUpdate(table.getId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bàn của đơn hàng!"));
+            List<Order> remainingActive = orderRepository.findActiveOrdersByTableId(table.getId());
+            if (remainingActive.isEmpty()) {
+                table.setStatus(TableStatus.AVAILABLE);
+                tableRepository.save(table);
+            }
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PaymentResponse getPaymentByOrderId(Long orderId) {
         Order order = orderRepository.findById(orderId)
@@ -150,7 +218,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public BankQrResponse generateBankQr(String orderCode, Long customerId) {
         Order order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode));
@@ -164,6 +232,17 @@ public class PaymentServiceImpl implements PaymentService {
         if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new RuntimeException("Đơn hàng này đã hoàn tất hoặc đã hủy, không thể tạo mã thanh toán!");
         }
+
+        Payment pendingPayment = paymentRepository.findByOrderId(order.getId())
+                .orElseGet(() -> Payment.builder().order(order).build());
+        if (pendingPayment.getStatus() == PaymentStatus.COMPLETED) {
+            throw new RuntimeException("Đơn hàng này đã được thanh toán trước đó!");
+        }
+        pendingPayment.setPaymentMethod(com.restaurant.enums.PaymentMethod.BANK_TRANSFER);
+        pendingPayment.setAmount(amount);
+        pendingPayment.setDiscountAmount(order.getTotalAmount().subtract(amount));
+        pendingPayment.setStatus(PaymentStatus.PENDING);
+        paymentRepository.save(pendingPayment);
 
         // Nội dung chuyển khoản = mã đơn hàng, dùng để nhân viên đối soát trên sao kê ngân hàng xem đơn nào đã được thanh toán
         String transferContent = order.getOrderCode();
@@ -193,7 +272,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public BankQrResponse generateBankQrByOrderId(Long orderId, String voucherCode) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + orderId));

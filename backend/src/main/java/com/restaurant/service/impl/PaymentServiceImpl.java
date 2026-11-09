@@ -148,8 +148,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Đơn hàng đã hủy hoặc đã thanh toán");
         }
 
-        Payment payment = paymentRepository.findByOrderId(order.getId())
-                .orElseGet(() -> Payment.builder().order(order).build());
+        Payment payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        if (payment == null) payment = Payment.builder().order(order).build();
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
             return;
         }
@@ -224,23 +224,24 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode));
         if (order.getCustomer() == null || !order.getCustomer().getId().equals(customerId))
             throw new RuntimeException("Không tìm thấy đơn hàng với mã: " + orderCode);
-        return buildBankQr(order, order.getTotalAmount());
+        return buildBankQr(order, order.getTotalAmount(), null);
     }
 
-    private BankQrResponse buildBankQr(Order order, BigDecimal amount) {
+    private BankQrResponse buildBankQr(Order order, BigDecimal amount, String voucherCode) {
 
         if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new RuntimeException("Đơn hàng này đã hoàn tất hoặc đã hủy, không thể tạo mã thanh toán!");
         }
 
-        Payment pendingPayment = paymentRepository.findByOrderId(order.getId())
-                .orElseGet(() -> Payment.builder().order(order).build());
+        Payment pendingPayment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        if (pendingPayment == null) pendingPayment = Payment.builder().order(order).build();
         if (pendingPayment.getStatus() == PaymentStatus.COMPLETED) {
             throw new RuntimeException("Đơn hàng này đã được thanh toán trước đó!");
         }
         pendingPayment.setPaymentMethod(com.restaurant.enums.PaymentMethod.BANK_TRANSFER);
         pendingPayment.setAmount(amount);
         pendingPayment.setDiscountAmount(order.getTotalAmount().subtract(amount));
+        pendingPayment.setVoucherCode(voucherCode);
         pendingPayment.setStatus(PaymentStatus.PENDING);
         paymentRepository.save(pendingPayment);
 
@@ -281,7 +282,7 @@ public class PaymentServiceImpl implements PaymentService {
             VoucherApplyResponse preview = voucherService.validateVoucher(voucherCode, amount);
             amount = preview.getFinalAmount();
         }
-        return buildBankQr(order, amount);
+        return buildBankQr(order, amount, voucherCode);
     }
 
     private PaymentResponse mapToResponse(Payment payment, Order order) {

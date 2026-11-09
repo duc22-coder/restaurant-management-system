@@ -21,6 +21,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByOrderCode(String orderCode);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.orderCode = :orderCode")
+    Optional<Order> findByOrderCodeForUpdate(@Param("orderCode") String orderCode);
+
     long countByStatus(OrderStatus status);
 
     // Các truy vấn danh sách bên dưới dùng LEFT JOIN FETCH để nạp sẵn table/customer/orderItems/menuItem

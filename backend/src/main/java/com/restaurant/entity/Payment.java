@@ -47,6 +47,9 @@ public class Payment {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "sepay_transaction_id", unique = true, length = 100)
+    private String sepayTransactionId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

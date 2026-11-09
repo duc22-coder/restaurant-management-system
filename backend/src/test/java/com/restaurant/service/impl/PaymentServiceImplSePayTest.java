@@ -59,7 +59,7 @@ class PaymentServiceImplSePayTest {
 
         assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
         assertEquals("77", payment.getSepayTransactionId());
-        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        verify(order).setStatus(OrderStatus.COMPLETED);
         verify(orderRepository).save(order);
         verify(paymentRepository).save(payment);
     }

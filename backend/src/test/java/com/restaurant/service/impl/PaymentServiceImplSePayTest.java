@@ -51,8 +51,6 @@ class PaymentServiceImplSePayTest {
         when(orderRepository.findByOrderCodeForUpdate("ORD-TEST-1")).thenReturn(Optional.of(order));
         when(order.getId()).thenReturn(15L);
         when(order.getStatus()).thenReturn(OrderStatus.PENDING);
-        when(order.getTotalAmount()).thenReturn(new BigDecimal("250.00"));
-        when(order.getTable()).thenReturn(null);
         when(paymentRepository.findByOrderId(15L)).thenReturn(Optional.of(payment));
 
         paymentService.processSePayWebhook("77", "ORD-TEST-1", new BigDecimal("250.00"));
@@ -78,7 +76,6 @@ class PaymentServiceImplSePayTest {
         when(orderRepository.findByOrderCodeForUpdate("ORD-TEST-2")).thenReturn(Optional.of(order));
         when(order.getId()).thenReturn(16L);
         when(order.getStatus()).thenReturn(OrderStatus.PENDING);
-        when(order.getTotalAmount()).thenReturn(new BigDecimal("250.00"));
         when(paymentRepository.findByOrderId(16L)).thenReturn(Optional.of(payment));
 
         assertThrows(IllegalArgumentException.class,

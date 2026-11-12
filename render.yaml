@@ -25,6 +25,8 @@ services:
         sync: false
       - key: BANK_ACCOUNT_NAME
         sync: false
+      - key: SEPAY_API_KEY
+        sync: false
       - key: INITIAL_ADMIN_USERNAME
         sync: false
       - key: INITIAL_ADMIN_PASSWORD

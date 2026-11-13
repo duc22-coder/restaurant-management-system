@@ -141,6 +141,11 @@ public class PaymentServiceImpl implements PaymentService {
         while (matcher.find() && order == null) {
             order = orderRepository.findByOrderCodeForUpdate(matcher.group()).orElse(null);
         }
+                Matcher compactOrderMatcher = Pattern.compile("(?i)ORD-?(\\d{10})-?(\\d{6})").matcher(content == null ? "" : content);
+        if (order == null && compactOrderMatcher.find()) {
+            String normalizedOrderCode = "ORD-" + compactOrderMatcher.group(1) + "-" + compactOrderMatcher.group(2);
+            order = orderRepository.findByOrderCodeForUpdate(normalizedOrderCode).orElse(null);
+        }
         if (order == null) {
             throw new IllegalArgumentException("Không tìm thấy mã đơn hàng trong nội dung chuyển khoản");
         }
